@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+
+# Documentation files (not needed for deployment)
+PERFORMANCE_TIPS.md
+TROUBLESHOOTING.md
+STOP_SERVER.md
+FIX_SERVER_NOT_STARTING.md
+FREE_HOSTING_GUIDE.md
+DEPLOYMENT.md
+QUICK_DEPLOY.md
+DEPLOY_TO_GITHUB.md
+GITHUB_SETUP.md
+QUICKSTART.md
+.gitignore.deployment
+
+# Helper scripts (not needed for deployment)
+test_server.py
+install_and_start.sh
+start_server.sh
+start_server.py
+fastapi/reset_database.py

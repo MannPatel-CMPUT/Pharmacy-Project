@@ -1,0 +1,6 @@
+<!-- 
+This is a production version of index.html that uses environment-based API URL
+For local development, use the regular index.html
+For production, update API_BASE to your hosted URL
+-->
+<!-- Copy this content and update API_BASE in the script section -->

@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pharmacy Workflow Automation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 8px;
+            flex: 1;
+            min-width: 150px;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        input[type="number"] {
+            width: 100px;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            font-size: 14px;
+            padding: 8px 16px;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            background: #e0a800;
+        }
+
+        .btn-info {
+            background: #17a2b8;
+        }
+
+        .btn-info:hover {
+            background: #138496;
+        }
+
+        .intake-list {
+            max-height: 700px;
+            overflow-y: auto;
+        }
+
+        .intake-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .intake-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+        }
+
+        .intake-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+
+        .intake-id {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        .status-new { background: #e3f2fd; color: #1976d2; }
+        .status-triage { background: #fff3e0; color: #f57c00; }
+        .status-waiting_info { background: #fce4ec; color: #c2185b; }
+        .status-ready_to_fill { background: #e8f5e9; color: #388e3c; }
+        .status-filled { background: #f3e5f5; color: #7b1fa2; }
+        .status-dispensed { background: #fff9c4; color: #f57f17; }
+        .status-completed { background: #e0f2f1; color: #00796b; }
+
+        .intake-info {
+            margin: 10px 0;
+            line-height: 1.6;
+        }
+
+        .intake-info strong {
+            color: #555;
+        }
+
+        .interaction-warning {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+
+        .interaction-warning.major {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+        }
+
+        .counseling-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 0.9em;
+            white-space: pre-line;
+        }
+
+        .pharmacist-notes {
+            background: #f0f0f0;
+            border-left: 4px solid #6c757d;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-size: 0.9em;
+            white-space: pre-line;
+        }
+
+        .intake-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #667eea;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        @media (max-width: 968px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏥 Pharmacy Workflow Automation</h1>
+            <div class="stats" id="stats">
+                <div class="stat-card">
+                    <div class="stat-label">Total Intakes</div>
+                    <div class="stat-value" id="total-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">New</div>
+                    <div class="stat-value" id="new-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Ready to Fill</div>
+                    <div class="stat-value" id="ready-count">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Dispensed</div>
+                    <div class="stat-value" id="dispensed-count">0</div>
+                </div>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <div class="panel">
+                <h2>Create New Intake</h2>
+                <form id="intake-form">
+                    <div class="form-group">
+                        <label for="patient-name">Patient Name *</label>
+                        <input type="text" id="patient-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="patient-age">Patient Age</label>
+                        <input type="number" id="patient-age" min="0" max="150">
+                    </div>
+                    <div class="form-group">
+                        <label for="patient-allergies">Allergies</label>
+                        <input type="text" id="patient-allergies" placeholder="e.g., Penicillin, Latex">
+                    </div>
+                    <div class="form-group">
+                        <label for="medications">New Medications *</label>
+                        <textarea id="medications" required placeholder="e.g., Warfarin 5mg, Aspirin 81mg"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="current-medications">Current Medications (for interaction check)</label>
+                        <textarea id="current-medications" placeholder="e.g., Ibuprofen, Lisinopril"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="notes">Notes</label>
+                        <textarea id="notes"></textarea>
+                    </div>
+                    <button type="submit">Create Intake</button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>Intake List</h2>
+                <div class="filter-bar">
+                    <select id="status-filter">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="triage">Triage</option>
+                        <option value="waiting_info">Waiting Info</option>
+                        <option value="ready_to_fill">Ready to Fill</option>
+                        <option value="filled">Filled</option>
+                        <option value="dispensed">Dispensed</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                    <button class="btn-secondary" onclick="loadIntakes()">Refresh</button>
+                </div>
+                <div class="intake-list" id="intake-list">
+                    <div class="loading">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for detailed view -->
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-detect API base URL (works for both local and production)
+        const API_BASE = window.location.origin; // Uses current domain (localhost:8000 or your-hosted-url.com)
+        const REQUEST_TIMEOUT = 5000; // 5 seconds
+
+        // Helper function for fetch with timeout
+        async function fetchWithTimeout(url, options = {}, timeout = REQUEST_TIMEOUT) {
+            const controller = new AbortController();
+            const id = setTimeout(() => controller.abort(), timeout);
+            
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    signal: controller.signal
+                });
+                clearTimeout(id);
+                return response;
+            } catch (error) {
+                clearTimeout(id);
+                if (error.name === 'AbortError') {
+                    throw new Error('Request timeout - server is taking too long to respond');
+                }
+                throw error;
+            }
+        }
+
+        // Check if API is available
+        async function checkApiHealth() {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/health`, {}, 3000);
+                return response.ok;
+            } catch (error) {
+                return false;
+            }
+        }
+
+        // Load intakes on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check API health first
+            const apiAvailable = await checkApiHealth();
+            if (!apiAvailable) {
+                document.getElementById('intake-list').innerHTML = 
+                    '<div class="empty-state" style="color: #dc3545;">⚠️ Cannot connect to API server.<br>Make sure the backend is running on http://localhost:8000<br><br>Start it with: <code>python3 start_server.py</code></div>';
+                return;
+            }
+            
+            loadIntakes();
+            loadStatistics();
+            document.getElementById('status-filter').addEventListener('change', loadIntakes);
+        });
+
+        // Form submission
+        document.getElementById('intake-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                patient_name: document.getElementById('patient-name').value,
+                patient_age: document.getElementById('patient-age').value ? parseInt(document.getElementById('patient-age').value) : null,
+                patient_allergies: document.getElementById('patient-allergies').value || null,
+                medications: document.getElementById('medications').value,
+                current_medications: document.getElementById('current-medications').value || null,
+                notes: document.getElementById('notes').value || null
+            };
+
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/intakes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    const intake = await response.json();
+                    document.getElementById('intake-form').reset();
+                    loadIntakes();
+                    loadStatistics();
+                    
+                    // Show drug interactions if any
+                    if (intake.drug_interactions) {
+                        const interactions = JSON.parse(intake.drug_interactions);
+                        if (interactions.length > 0) {
+                            let msg = 'Intake created!\n\n⚠️ DRUG INTERACTION WARNINGS:\n';
+                            interactions.forEach(i => {
+                                msg += `\n${i.severity}: ${i.drug1} + ${i.drug2}\n${i.description}\n`;
+                            });
+                            alert(msg);
+                        } else {
+                            alert('Intake created successfully!');
+                        }
+                    } else {
+                        alert('Intake created successfully!');
+                    }
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + (error.detail || 'Creating intake failed'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        });
+
+        // Load intakes
+        async function loadIntakes() {
+            const statusFilter = document.getElementById('status-filter').value;
+            const url = statusFilter 
+                ? `${API_BASE}/intakes?status=${statusFilter}`
+                : `${API_BASE}/intakes`;
+
+            try {
+                const response = await fetchWithTimeout(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const intakes = await response.json();
+                displayIntakes(intakes);
+            } catch (error) {
+                const errorMsg = error.message.includes('timeout') 
+                    ? 'Request timeout - server is taking too long. Check if the server is running.'
+                    : `Error loading intakes: ${error.message}. Make sure the API is running on ${API_BASE}`;
+                document.getElementById('intake-list').innerHTML = 
+                    `<div class="empty-state" style="color: #dc3545;">${errorMsg}</div>`;
+            }
+        }
+
+        // Display intakes
+        function displayIntakes(intakes) {
+            const listEl = document.getElementById('intake-list');
+            
+            if (intakes.length === 0) {
+                listEl.innerHTML = '<div class="empty-state">No intakes found</div>';
+                return;
+            }
+
+            listEl.innerHTML = intakes.map(intake => {
+                const interactions = intake.drug_interactions ? JSON.parse(intake.drug_interactions) : [];
+                const hasInteractions = interactions.length > 0;
+                
+                return `
+                <div class="intake-card">
+                    <div class="intake-header">
+                        <span class="intake-id">#${intake.id}</span>
+                        <span class="status-badge status-${intake.status}">${intake.status.replace('_', ' ')}</span>
+                    </div>
+                    <div class="intake-info">
+                        <div><strong>Patient:</strong> ${intake.patient_name}${intake.patient_age ? ` (Age: ${intake.patient_age})` : ''}</div>
+                        ${intake.patient_allergies ? `<div><strong>⚠️ Allergies:</strong> ${intake.patient_allergies}</div>` : ''}
+                        <div><strong>Medications:</strong> ${intake.medications}</div>
+                        ${intake.current_medications ? `<div><strong>Current Meds:</strong> ${intake.current_medications}</div>` : ''}
+                        ${hasInteractions ? `
+                            <div class="interaction-warning ${interactions[0].severity === 'Major' ? 'major' : ''}">
+                                <strong>⚠️ Drug Interactions Detected:</strong><br>
+                                ${interactions.map(i => `${i.severity}: ${i.drug1} + ${i.drug2} - ${i.description}`).join('<br>')}
+                            </div>
+                        ` : ''}
+                        ${intake.counseling_points ? `
+                            <div class="counseling-box">
+                                <strong>💊 Counseling Points:</strong><br>
+                                ${intake.counseling_points}
+                            </div>
+                        ` : ''}
+                        ${intake.pharmacist_notes ? `
+                            <div class="pharmacist-notes">
+                                <strong>📝 Pharmacist Notes:</strong><br>
+                                ${intake.pharmacist_notes}
+                            </div>
+                        ` : ''}
+                        ${intake.notes ? `<div><strong>Notes:</strong> ${intake.notes}</div>` : ''}
+                        ${intake.assigned_to ? `<div><strong>Assigned to:</strong> ${intake.assigned_to}</div>` : ''}
+                        ${intake.dispensed === 'yes' ? `<div><strong>✅ Dispensed:</strong> ${new Date(intake.dispensed_at).toLocaleString()}</div>` : ''}
+                        <div style="margin-top: 8px; font-size: 0.85em; color: #999;">
+                            Created: ${new Date(intake.created_at).toLocaleString()}
+                        </div>
+                    </div>
+                    <div class="intake-actions">
+                        ${getStatusButtons(intake)}
+                        ${intake.status === 'filled' ? `<button class="btn-warning" onclick="dispenseMedication(${intake.id})">Dispense</button>` : ''}
+                        <button class="btn-info" onclick="showDetails(${intake.id})">View Details</button>
+                        <button class="btn-secondary" onclick="assignIntake(${intake.id})">Assign</button>
+                    </div>
+                </div>
+            `;
+            }).join('');
+        }
+
+        // Get status transition buttons
+        function getStatusButtons(intake) {
+            const transitions = {
+                'new': ['triage'],
+                'triage': ['waiting_info', 'ready_to_fill'],
+                'waiting_info': ['ready_to_fill'],
+                'ready_to_fill': ['filled'],
+                'filled': ['dispensed'],
+                'dispensed': ['completed'],
+                'completed': []
+            };
+
+            const nextStatuses = transitions[intake.status] || [];
+            return nextStatuses.map(status => 
+                `<button class="btn-success" onclick="updateStatus(${intake.id}, '${status}')">
+                    Move to ${status.replace('_', ' ')}
+                </button>`
+            ).join('');
+        }
+
+        // Update status
+        async function updateStatus(intakeId, newStatus) {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+
+                if (response.ok) {
+                    loadIntakes();
+                    loadStatistics();
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + error.detail);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Assign intake
+        async function assignIntake(intakeId) {
+            const user = prompt('Enter staff member name:');
+            if (!user) return;
+
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/assign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user })
+                });
+
+                if (response.ok) {
+                    loadIntakes();
+                } else {
+                    alert('Error assigning intake');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Dispense medication
+        async function dispenseMedication(intakeId) {
+            if (!confirm('Mark this medication as dispensed?')) return;
+
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/dispense`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dispensed: 'yes' })
+                });
+
+                if (response.ok) {
+                    loadIntakes();
+                    loadStatistics();
+                    alert('Medication marked as dispensed!');
+                } else {
+                    alert('Error dispensing medication');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Show details modal
+        async function showDetails(intakeId) {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const intake = await response.json();
+                
+                const interactions = intake.drug_interactions ? JSON.parse(intake.drug_interactions) : [];
+                
+                let html = `
+                    <h2>Intake #${intake.id} - ${intake.patient_name}</h2>
+                    <div style="margin: 20px 0;">
+                        <p><strong>Status:</strong> <span class="status-badge status-${intake.status}">${intake.status.replace('_', ' ')}</span></p>
+                        <p><strong>Patient Age:</strong> ${intake.patient_age || 'N/A'}</p>
+                        <p><strong>Allergies:</strong> ${intake.patient_allergies || 'None recorded'}</p>
+                        <p><strong>Medications:</strong> ${intake.medications}</p>
+                        <p><strong>Current Medications:</strong> ${intake.current_medications || 'None'}</p>
+                        ${intake.assigned_to ? `<p><strong>Assigned to:</strong> ${intake.assigned_to}</p>` : ''}
+                        ${intake.dispensed === 'yes' ? `<p><strong>Dispensed:</strong> ${new Date(intake.dispensed_at).toLocaleString()}</p>` : ''}
+                    </div>
+                `;
+                
+                if (interactions.length > 0) {
+                    html += `<div class="interaction-warning ${interactions[0].severity === 'Major' ? 'major' : ''}">
+                        <strong>⚠️ Drug Interactions:</strong><br>
+                        ${interactions.map(i => `<strong>${i.severity}:</strong> ${i.drug1} + ${i.drug2}<br>${i.description}<br><br>`).join('')}
+                    </div>`;
+                }
+                
+                if (intake.counseling_points) {
+                    html += `<div class="counseling-box">
+                        <strong>💊 Counseling Points:</strong><br>
+                        ${intake.counseling_points}
+                    </div>`;
+                }
+                
+                if (intake.pharmacist_notes) {
+                    html += `<div class="pharmacist-notes">
+                        <strong>📝 Pharmacist Notes:</strong><br>
+                        ${intake.pharmacist_notes}
+                    </div>`;
+                }
+                
+                html += `
+                    <div style="margin-top: 20px;">
+                        <button onclick="editCounseling(${intake.id})" class="btn-info">Edit Counseling Points</button>
+                        <button onclick="editPharmacistNotes(${intake.id})" class="btn-secondary">Edit Pharmacist Notes</button>
+                        <button onclick="recheckInteractions(${intake.id})" class="btn-warning">Re-check Interactions</button>
+                    </div>
+                `;
+                
+                document.getElementById('modal-body').innerHTML = html;
+                document.getElementById('detail-modal').style.display = 'block';
+            } catch (error) {
+                alert('Error loading details: ' + error.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('detail-modal').style.display = 'none';
+        }
+
+        async function editCounseling(intakeId) {
+            try {
+                const currentResponse = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}`);
+                const current = await currentResponse.json();
+                const newPoints = prompt('Enter counseling points:', current.counseling_points || '');
+                if (newPoints === null) return;
+
+                const response = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/counseling`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ counseling_points: newPoints })
+                });
+
+                if (response.ok) {
+                    loadIntakes();
+                    showDetails(intakeId);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function editPharmacistNotes(intakeId) {
+            try {
+                const currentResponse = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}`);
+                const current = await currentResponse.json();
+                const newNotes = prompt('Enter pharmacist notes:', current.pharmacist_notes || '');
+                if (newNotes === null) return;
+
+                const response = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/pharmacist-notes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pharmacist_notes: newNotes })
+                });
+
+                if (response.ok) {
+                    loadIntakes();
+                    showDetails(intakeId);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function recheckInteractions(intakeId) {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/check-interactions`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const result = await response.json();
+                
+                loadIntakes();
+                showDetails(intakeId);
+                alert('Interactions re-checked!');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Load statistics
+        async function loadStatistics() {
+            try {
+                const response = await fetchWithTimeout(`${API_BASE}/intakes/stats/summary`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const stats = await response.json();
+                
+                document.getElementById('total-count').textContent = stats.total;
+                document.getElementById('new-count').textContent = stats.by_status.new || 0;
+                document.getElementById('ready-count').textContent = stats.by_status.ready_to_fill || 0;
+                document.getElementById('dispensed-count').textContent = stats.dispensed_count || 0;
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+                // Don't show error in UI for stats, just log it
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('detail-modal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>
