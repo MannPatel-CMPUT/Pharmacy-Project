@@ -172,3 +172,4 @@ To extend the system:
 - The database is initialized automatically on server startup
 - CORS is enabled for all origins (configure appropriately for production)
 - The frontend expects the API to be running on `http://localhost:8000`
+# force redeploy
