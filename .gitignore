@@ -51,3 +51,4 @@ install_and_start.sh
 start_server.sh
 start_server.py
 fastapi/reset_database.py
+.venv/
