@@ -1,8 +1,9 @@
 from schemas.intake_actions import StatusUpdate, AssignUser
 from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
+from typing import List, Optional
 from schemas.intake import (
-    IntakeCreate, IntakeOut, 
+    IntakeCreate, IntakeOut, StatusHistoryEntry,
     CounselingPointsUpdate, PharmacistNotesUpdate, DispenseUpdate
 )
 from services import intake_service
@@ -11,7 +12,7 @@ from database import get_db
 router = APIRouter(prefix="/intakes", tags=["intakes"])
 
 
-@router.post("", response_model=IntakeOut)
+@router.post("", response_model=IntakeOut, status_code=201)
 def create_intake(payload: IntakeCreate, db: Session = Depends(get_db)):
     try:
         return intake_service.create_intake(db, payload)
@@ -19,14 +20,21 @@ def create_intake(payload: IntakeCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Error creating intake: {str(e)}")
 
 
-@router.get("", response_model=list[IntakeOut])
+@router.get("", response_model=List[IntakeOut])
 def list_intakes(
-    status: str = Query(None, description="Filter by status"),
-    assigned_to: str = Query(None, description="Filter by assigned user"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    assigned_to: Optional[str] = Query(None, description="Filter by assigned user"),
+    search: Optional[str] = Query(None, description="Search by patient name"),
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of records to return"),
     db: Session = Depends(get_db)
 ):
-    intakes = intake_service.list_intakes(db, status=status, assigned_to=assigned_to)
-    return intakes
+    return intake_service.list_intakes(db, status=status, assigned_to=assigned_to, search=search, skip=skip, limit=limit)
+
+
+@router.get("/stats/summary")
+def get_statistics(db: Session = Depends(get_db)):
+    return intake_service.get_statistics(db)
 
 
 @router.get("/{intake_id}", response_model=IntakeOut)
@@ -37,16 +45,30 @@ def get_intake(intake_id: int, db: Session = Depends(get_db)):
     return intake
 
 
+@router.delete("/{intake_id}", status_code=204)
+def cancel_intake(intake_id: int, db: Session = Depends(get_db)):
+    deleted = intake_service.cancel_intake(db, intake_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Intake not found")
+
+
 @router.post("/{intake_id}/status", response_model=IntakeOut)
 def change_status(intake_id: int, payload: StatusUpdate, db: Session = Depends(get_db)):
     try:
         intake = intake_service.update_status(db, intake_id, payload.status)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
     return intake
+
+
+@router.get("/{intake_id}/history", response_model=List[StatusHistoryEntry])
+def get_status_history(intake_id: int, db: Session = Depends(get_db)):
+    intake = intake_service.get_intake_by_id(db, intake_id)
+    if not intake:
+        raise HTTPException(status_code=404, detail="Intake not found")
+    return intake_service.get_status_history(db, intake_id)
 
 
 @router.post("/{intake_id}/assign", response_model=IntakeOut)
@@ -87,8 +109,3 @@ def check_interactions(intake_id: int, db: Session = Depends(get_db)):
     if not result:
         raise HTTPException(status_code=404, detail="Intake not found")
     return result
-
-
-@router.get("/stats/summary")
-def get_statistics(db: Session = Depends(get_db)):
-    return intake_service.get_statistics(db)

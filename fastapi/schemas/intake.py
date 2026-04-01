@@ -1,16 +1,31 @@
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, ConfigDict, Field
+from typing import Optional, List
 from datetime import datetime
 
+
+class StatusHistoryEntry(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    intake_id: int
+    from_status: Optional[str] = None
+    to_status: str
+    changed_at: datetime
+    changed_by: Optional[str] = None
+
+
 class IntakeCreate(BaseModel):
-    patient_name: str
-    patient_age: Optional[int] = None
-    patient_allergies: Optional[str] = None
-    medications: str
+    patient_name: str = Field(..., min_length=1, max_length=100)
+    patient_age: Optional[int] = Field(None, ge=0, le=150)
+    patient_allergies: Optional[str] = Field(None, max_length=500)
+    medications: str = Field(..., min_length=1)
     current_medications: Optional[str] = None
     notes: Optional[str] = None
 
+
 class IntakeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     patient_name: str
     patient_age: Optional[int] = None
@@ -28,14 +43,14 @@ class IntakeOut(BaseModel):
     created_at: datetime
     updated_at: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
 
 class CounselingPointsUpdate(BaseModel):
     counseling_points: str
 
+
 class PharmacistNotesUpdate(BaseModel):
     pharmacist_notes: str
 
+
 class DispenseUpdate(BaseModel):
-    dispensed: str  # "yes" or "no"
+    dispensed: str = Field(..., pattern="^(yes|no)$")

@@ -1,0 +1,31 @@
+{
+  "interactions": {
+    "warfarin": {
+      "aspirin": "Major: Increased bleeding risk. Monitor INR closely.",
+      "ibuprofen": "Major: Increased bleeding risk. Avoid concurrent use.",
+      "naproxen": "Major: Increased bleeding risk. Monitor for bleeding.",
+      "acetaminophen": "Moderate: May enhance anticoagulant effect."
+    },
+    "lisinopril": {
+      "potassium": "Moderate: Risk of hyperkalemia. Monitor potassium levels.",
+      "spironolactone": "Major: Risk of hyperkalemia. Monitor closely."
+    },
+    "atorvastatin": {
+      "erythromycin": "Major: Increased risk of myopathy. Monitor for muscle pain.",
+      "grapefruit": "Moderate: May increase statin levels. Limit grapefruit intake."
+    },
+    "amoxicillin": {
+      "warfarin": "Moderate: May enhance anticoagulant effect."
+    },
+    "aspirin": {
+      "ibuprofen": "Moderate: Increased GI bleeding risk.",
+      "warfarin": "Major: Increased bleeding risk."
+    }
+  },
+  "categories": {
+    "nsaids": ["ibuprofen", "naproxen", "aspirin", "diclofenac"],
+    "anticoagulants": ["warfarin", "apixaban", "rivaroxaban"],
+    "ace_inhibitors": ["lisinopril", "enalapril", "ramipril"],
+    "statins": ["atorvastatin", "simvastatin", "rosuvastatin"]
+  }
+}
