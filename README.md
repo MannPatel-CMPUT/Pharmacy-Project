@@ -163,18 +163,6 @@ python -m http.server 8080
 
 Full interactive docs at `/docs` when the server is running.
 
----
-
-## 🛣 Improvements Roadmap
-
-- [ ] Add JWT-based authentication for staff login
-- [ ] Replace SQLite with PostgreSQL for production scalability
-- [ ] Add `pytest` unit tests for service layer and API endpoints
-- [ ] Integrate a real drug database (e.g., OpenFDA API / RxNorm)
-- [ ] Add pagination to `GET /intakes` for large datasets
-- [ ] Add input sanitization and rate limiting middleware
-- [ ] Dockerize the app for consistent local and cloud environments
-- [ ] Add GitHub Actions CI/CD pipeline for automated testing on push
 
 ---
 
