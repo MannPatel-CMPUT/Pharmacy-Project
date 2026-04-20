@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 import os
 import json
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+import logging
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pharmacy.db")
 
@@ -13,6 +15,7 @@ engine = create_engine(
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+logger = logging.getLogger(__name__)
 
 
 class Intake(Base):
@@ -207,8 +210,12 @@ def _seed_drug_knowledge() -> None:
                         source="seed_json",
                     )
                 )
-
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Parallel app startups can race on seed inserts; skip duplicates gracefully.
+            db.rollback()
+            logger.info("seed duplicate_conflicts_skipped=true")
 
 
 def init_db():

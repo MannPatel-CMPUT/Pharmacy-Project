@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from database import DrugAlias, DrugInteraction, InteractionDocument
 from services.knowledge_repository import ensure_alias, get_or_create_drug, ordered_pair
+from services.normalization_service import CLASS_TO_DRUGS, normalize_token
 
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
@@ -20,8 +21,7 @@ _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 # Generic class names that appear frequently in label text and their deterministic
 # expansion targets for interaction matching.
 _CLASS_TO_DRUGS = {
-    "nsaids": ["ibuprofen", "naproxen", "aspirin"],
-    "nsaid": ["ibuprofen", "naproxen", "aspirin"],
+    **CLASS_TO_DRUGS,
     "nonsteroidal anti-inflammatory drugs": ["ibuprofen", "naproxen", "aspirin"],
     "nonsteroidal anti inflammatory drugs": ["ibuprofen", "naproxen", "aspirin"],
 }
