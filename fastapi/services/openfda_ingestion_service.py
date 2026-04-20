@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -13,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from database import DrugAlias, DrugInteraction, InteractionDocument
 from services.knowledge_repository import ensure_alias, get_or_create_drug, ordered_pair
-from services.normalization_service import CLASS_TO_DRUGS, normalize_token
+from services.normalization_service import CLASS_TO_DRUGS
 
 OPENFDA_URL = "https://api.fda.gov/drug/label.json"
 _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
@@ -254,16 +255,84 @@ def _upsert_interaction(db: Session, drug_a_id: int, drug_b_id: int, severity: s
     return True
 
 
-def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, int]:
-    stats = {"total_fetched": 0, "parsed": 0, "inserted": 0, "failed": 0, "skipped": 0}
+def _bump_skip_reason(stats: dict[str, Any], reason: str) -> None:
+    counts: dict[str, int] = stats.setdefault("skip_reason_counts", {})
+    counts[reason] = counts.get(reason, 0) + 1
+
+
+def _fetch_openfda_results(limit: int) -> tuple[list[dict] | None, dict[str, Any]]:
+    """Returns (results, error_stats) where error_stats is empty dict on success."""
+    params: dict[str, Any] = {"limit": max(1, min(limit, 100))}
+    api_key = os.getenv("OPENFDA_API_KEY")
+    if api_key:
+        params["api_key"] = api_key
+
+    timeout = float(os.getenv("OPENFDA_TIMEOUT_SECONDS", "30"))
+    request_url = f"{OPENFDA_URL}?limit={params['limit']}"
 
     try:
-        response = httpx.get(OPENFDA_URL, params={"limit": max(1, min(limit, 100))}, timeout=20.0)
+        response = httpx.get(OPENFDA_URL, params=params, timeout=timeout)
         response.raise_for_status()
         payload = response.json()
-        results = payload.get("results", [])
-    except Exception:
-        stats["failed"] += 1
+    except httpx.HTTPStatusError as exc:
+        body_preview = (exc.response.text or "")[:500]
+        logger.exception(
+            "openfda HTTP error status=%s url=%s body_preview=%r",
+            exc.response.status_code,
+            request_url,
+            body_preview,
+        )
+        return None, {
+            "failed": 1,
+            "error": f"HTTP {exc.response.status_code}: {body_preview or exc.response.reason_phrase}",
+            "http_status": exc.response.status_code,
+            "request_url": request_url,
+        }
+    except Exception as exc:
+        logger.exception("openfda fetch failed url=%s", request_url)
+        return None, {
+            "failed": 1,
+            "error": str(exc)[:500],
+            "request_url": request_url,
+        }
+
+    if isinstance(payload, dict) and payload.get("error"):
+        err = payload["error"]
+        message = err.get("message") if isinstance(err, dict) else str(err)
+        code = err.get("code") if isinstance(err, dict) else None
+        logger.warning("openfda API error in JSON body: %s", err)
+        return None, {
+            "failed": 1,
+            "error": message or "openFDA returned an error object",
+            "openfda_message": message,
+            "openfda_code": code,
+            "request_url": request_url,
+        }
+
+    results = payload.get("results", []) if isinstance(payload, dict) else []
+    if not isinstance(results, list):
+        return None, {
+            "failed": 1,
+            "error": "openFDA response missing or invalid 'results' array",
+            "request_url": request_url,
+        }
+
+    return results, {}
+
+
+def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, Any]:
+    stats: dict[str, Any] = {
+        "total_fetched": 0,
+        "parsed": 0,
+        "inserted": 0,
+        "failed": 0,
+        "skipped": 0,
+        "skip_reason_counts": {},
+    }
+
+    results, err = _fetch_openfda_results(limit)
+    if err:
+        stats.update(err)
         return stats
 
     stats["total_fetched"] = len(results)
@@ -276,138 +345,158 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, int]:
     }
 
     for item in results:
+        source_id = "unknown"
         try:
-            aliases = _extract_aliases(item)
-            openfda = item.get("openfda", {}) or {}
-            set_id = _safe_list(openfda.get("set_id"))
-            source_id = set_id[0] if set_id else "unknown"
-            interaction_chunks = _safe_list(item.get("drug_interactions"))
-            interaction_text_exists = bool(interaction_chunks and any(chunk.strip() for chunk in interaction_chunks))
-            interaction_preview = _preview(interaction_chunks[0]) if interaction_chunks else ""
-
-            logger.info(
-                "openfda record source_id=%s interaction_text_exists=%s interaction_preview=%r",
-                source_id,
-                interaction_text_exists,
-                interaction_preview,
-            )
-
-            if not aliases:
-                stats["failed"] += 1
-                logger.info("openfda record source_id=%s action=fail reason=no_aliases", source_id)
-                continue
-
-            primary_name = aliases[0]
-            brand = _safe_list(openfda.get("brand_name"))
-            drug = get_or_create_drug(db, primary_name, brand[0] if brand else None)
-            ensure_alias(db, drug, primary_name)
-            for alias in aliases[1:]:
-                ensure_alias(db, drug, alias)
-
-            for alias in aliases:
-                known_aliases.setdefault(alias, drug.id)
-
-            sections = _split_sections(item)
-
-            for section_name, raw_text in sections:
-                parsed_pairs = _extract_pairs(raw_text, known_aliases, primary_name)
-                parsed_payload = []
-                section_preview = _preview(raw_text)
+            with db.begin_nested():
+                aliases = _extract_aliases(item)
+                openfda = item.get("openfda", {}) or {}
+                set_id = _safe_list(openfda.get("set_id"))
+                source_id = set_id[0] if set_id else "unknown"
+                interaction_chunks = _safe_list(item.get("drug_interactions"))
+                interaction_text_exists = bool(
+                    interaction_chunks and any(chunk.strip() for chunk in interaction_chunks)
+                )
+                interaction_preview = _preview(interaction_chunks[0]) if interaction_chunks else ""
 
                 logger.info(
-                    "openfda section source_id=%s section=%s pair_extracted=%s preview=%r",
+                    "openfda record source_id=%s interaction_text_exists=%s interaction_preview=%r",
                     source_id,
-                    section_name,
-                    bool(parsed_pairs),
-                    section_preview,
+                    interaction_text_exists,
+                    interaction_preview,
                 )
 
-                for parsed in parsed_pairs:
-                    left_name = parsed["drug1"]
-                    right_name = parsed["drug2"]
-                    sentence = parsed["text"]
-                    confidence = parsed["confidence"]
+                if not aliases:
+                    stats["failed"] += 1
+                    logger.info("openfda record source_id=%s action=fail reason=no_aliases", source_id)
+                    continue
 
-                    severity = _severity_from_text(sentence)
-                    action = "unknown"
-                    reason = ""
-                    stats["parsed"] += 1
+                primary_name = aliases[0]
+                brand = _safe_list(openfda.get("brand_name"))
+                drug = get_or_create_drug(db, primary_name, brand[0] if brand else None)
+                ensure_alias(db, drug, primary_name)
+                for alias in aliases[1:]:
+                    ensure_alias(db, drug, alias)
 
-                    if confidence != "high":
-                        stats["skipped"] += 1
-                        action = "skip"
-                        reason = "low_confidence"
-                    else:
-                        left_drug = get_or_create_drug(db, left_name)
-                        right_drug = get_or_create_drug(db, right_name)
-                        ensure_alias(db, left_drug, left_name)
-                        ensure_alias(db, right_drug, right_name)
-                        pair = ordered_pair(left_drug.id, right_drug.id)
-                        if pair in known_pairs:
-                            stats["skipped"] += 1
-                            action = "skip"
-                            reason = "existing_pair"
-                        else:
-                            inserted = _upsert_interaction(db, left_drug.id, right_drug.id, severity, sentence)
-                            if inserted:
-                                stats["inserted"] += 1
-                                known_pairs.add(pair)
-                                action = "insert"
-                                reason = "inserted"
-                            else:
-                                stats["skipped"] += 1
-                                action = "skip"
-                                reason = "upsert_conflict"
+                for alias in aliases:
+                    known_aliases.setdefault(alias, drug.id)
+
+                sections = _split_sections(item)
+
+                for section_name, raw_text in sections:
+                    parsed_pairs = _extract_pairs(raw_text, known_aliases, primary_name)
+                    parsed_payload = []
+                    section_preview = _preview(raw_text)
 
                     logger.info(
-                        "openfda pair source_id=%s extracted=%s drug_a=%s drug_b=%s severity=%s action=%s reason=%s confidence=%s",
+                        "openfda section source_id=%s section=%s pair_extracted=%s preview=%r",
                         source_id,
-                        True,
-                        left_name,
-                        right_name,
-                        severity,
-                        action,
-                        reason,
-                        confidence,
+                        section_name,
+                        bool(parsed_pairs),
+                        section_preview,
                     )
 
-                    if action != "insert":
-                        continue
+                    for parsed in parsed_pairs:
+                        left_name = parsed["drug1"]
+                        right_name = parsed["drug2"]
+                        sentence = parsed["text"]
+                        confidence = parsed["confidence"]
 
-                    parsed_payload.append(
-                        {
-                            "drug1": left_name,
-                            "drug2": right_name,
-                            "severity": severity,
-                            "text": sentence,
-                            "confidence": confidence,
-                        }
-                    )
+                        severity = _severity_from_text(sentence)
+                        action = "unknown"
+                        reason = ""
+                        stats["parsed"] += 1
 
-                db.add(
-                    InteractionDocument(
-                        source="openfda",
-                        source_id=source_id,
-                        section=section_name,
-                        raw_text=raw_text[:5000],
-                        parsed_payload=json.dumps(parsed_payload),
-                        parsed_count=len(parsed_payload),
-                        created_at=datetime.now(timezone.utc),
+                        if confidence != "high":
+                            stats["skipped"] += 1
+                            action = "skip"
+                            reason = "low_confidence"
+                            _bump_skip_reason(stats, reason)
+                        else:
+                            left_drug = get_or_create_drug(db, left_name)
+                            right_drug = get_or_create_drug(db, right_name)
+                            ensure_alias(db, left_drug, left_name)
+                            ensure_alias(db, right_drug, right_name)
+                            pair = ordered_pair(left_drug.id, right_drug.id)
+                            if pair in known_pairs:
+                                stats["skipped"] += 1
+                                action = "skip"
+                                reason = "existing_pair"
+                                _bump_skip_reason(stats, reason)
+                            else:
+                                inserted = _upsert_interaction(db, left_drug.id, right_drug.id, severity, sentence)
+                                if inserted:
+                                    stats["inserted"] += 1
+                                    known_pairs.add(pair)
+                                    action = "insert"
+                                    reason = "inserted"
+                                else:
+                                    stats["skipped"] += 1
+                                    action = "skip"
+                                    reason = "upsert_conflict"
+                                    _bump_skip_reason(stats, reason)
+
+                        logger.info(
+                            "openfda pair source_id=%s extracted=%s drug_a=%s drug_b=%s severity=%s action=%s reason=%s confidence=%s",
+                            source_id,
+                            True,
+                            left_name,
+                            right_name,
+                            severity,
+                            action,
+                            reason,
+                            confidence,
+                        )
+
+                        if action != "insert":
+                            continue
+
+                        parsed_payload.append(
+                            {
+                                "drug1": left_name,
+                                "drug2": right_name,
+                                "severity": severity,
+                                "text": sentence,
+                                "confidence": confidence,
+                            }
+                        )
+
+                    db.add(
+                        InteractionDocument(
+                            source="openfda",
+                            source_id=source_id,
+                            section=section_name,
+                            raw_text=raw_text[:5000],
+                            parsed_payload=json.dumps(parsed_payload),
+                            parsed_count=len(parsed_payload),
+                            created_at=datetime.now(timezone.utc),
+                        )
                     )
-                )
         except Exception:
             stats["failed"] += 1
-            logger.exception("openfda record source_id=%s action=fail reason=exception", source_id if "source_id" in locals() else "unknown")
-            db.rollback()
+            logger.exception("openfda record source_id=%s action=fail reason=exception", source_id)
             continue
 
     db.commit()
+
+    if (
+        stats.get("total_fetched", 0) > 0
+        and stats.get("inserted", 0) == 0
+        and not stats.get("error")
+        and (stats.get("parsed", 0) > 0 or stats.get("skipped", 0) > 0)
+    ):
+        stats["hint"] = (
+            "No new DrugInteraction rows were inserted. Common reasons: pairs are medium-confidence only "
+            "(skipped as low_confidence), duplicates (existing_pair), or label text did not match high-confidence patterns. "
+            "See skip_reason_counts."
+        )
+
     logger.info(
-        "openfda summary total_fetched=%s parsed=%s inserted=%s skipped=%s failed=%s",
+        "openfda summary total_fetched=%s parsed=%s inserted=%s skipped=%s failed=%s skip_reason_counts=%s",
         stats["total_fetched"],
         stats["parsed"],
         stats["inserted"],
         stats["skipped"],
         stats["failed"],
+        stats.get("skip_reason_counts"),
     )
     return stats

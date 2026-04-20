@@ -5,6 +5,7 @@ Tries Ollama first for personalization, then falls back to template generation.
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,8 @@ from services.template_service import (
     generate_counseling_template,
     log_generated_counseling,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _ollama_json_to_text(payload: dict) -> str:
@@ -52,12 +55,16 @@ def generate_counseling(
     interactions: list[dict],
     patient_age: Optional[int] = None,
     intake_id: Optional[int] = None,
+    patient_allergies: Optional[str] = None,
+    notes: Optional[str] = None,
 ) -> dict:
     normalized_meds = split_medications(medications)
     patient_context = {
         "patient_name": patient_name,
         "patient_age": patient_age,
         "medications": normalized_meds,
+        "patient_allergies": (patient_allergies or "").strip() or None,
+        "clinical_notes": (notes or "").strip() or None,
     }
 
     try:
@@ -76,6 +83,11 @@ def generate_counseling(
             "text": _ollama_json_to_text(ollama_payload),
         }
     except Exception:
+        logger.exception(
+            "Ollama counseling failed; using template fallback (interactions_count=%s patient=%s)",
+            len(interactions or []),
+            patient_name,
+        )
         template_payload = generate_counseling_template(
             patient_name=patient_name,
             medications=normalized_meds,

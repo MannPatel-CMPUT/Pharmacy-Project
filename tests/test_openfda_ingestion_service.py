@@ -1,3 +1,4 @@
+import httpx
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -123,3 +124,31 @@ def test_openfda_sync_keeps_unparseable_text_as_document(monkeypatch):
     assert len(docs) == 1
     assert docs[0].parsed_count == 0
     assert "Avoid sunlight exposure" in docs[0].raw_text
+
+
+def test_openfda_sync_returns_error_on_http_failure(monkeypatch):
+    db = _session()
+
+    def _raise(*args, **kwargs):
+        req = httpx.Request("GET", "https://api.fda.gov/drug/label.json")
+        resp = httpx.Response(429, request=req, text="Too Many Requests")
+        raise httpx.HTTPStatusError("rate limited", request=req, response=resp)
+
+    monkeypatch.setattr("services.openfda_ingestion_service.httpx.get", _raise)
+    stats = sync_openfda_knowledge(db, limit=5)
+    assert stats["failed"] >= 1
+    assert "error" in stats
+    assert "429" in stats["error"] or "HTTP" in stats["error"]
+
+
+def test_openfda_sync_returns_error_on_openfda_error_json(monkeypatch):
+    db = _session()
+    err_body = {"error": {"code": "OVER_LIMIT", "message": "Too many requests"}}
+    monkeypatch.setattr(
+        "services.openfda_ingestion_service.httpx.get",
+        lambda *args, **kwargs: _MockResponse(err_body),
+    )
+    stats = sync_openfda_knowledge(db, limit=1)
+    assert stats.get("failed") == 1
+    assert "error" in stats
+    assert "Too many" in stats["error"] or "requests" in stats["error"].lower()

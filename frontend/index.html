@@ -671,7 +671,13 @@
         const res = await fetchWithTimeout(`${API_BASE}/knowledge/openfda-sync`, { method: 'POST' }, 30000);
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Sync failed');
-        out.textContent = `Fetched: ${data.total_fetched}, parsed: ${data.parsed}, inserted: ${data.inserted}, failed: ${data.failed}`;
+        const skipped = data.skipped != null ? `, skipped: ${data.skipped}` : '';
+        const err = data.error ? ` | error: ${data.error}` : '';
+        const hint = data.hint ? ` | note: ${data.hint}` : '';
+        const skips = data.skip_reason_counts && Object.keys(data.skip_reason_counts).length
+          ? ` | skip_reasons: ${JSON.stringify(data.skip_reason_counts)}`
+          : '';
+        out.textContent = `Fetched: ${data.total_fetched}, parsed: ${data.parsed}, inserted: ${data.inserted}, failed: ${data.failed}${skipped}${skips}${err}${hint}`;
       } catch (err) {
         out.textContent = `Sync error: ${err.message}`;
       }

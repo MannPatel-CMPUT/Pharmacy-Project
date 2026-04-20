@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import services.counseling_service as counseling_mod
 import services.openfda_ingestion_service as ingestion
 import services.ollama_service as ollama
 from main import app
@@ -381,3 +382,21 @@ def test_knowledge_upload_json_endpoint_with_bad_rows():
     assert data["inserted"] == 1
     assert data["skipped"] == 2
     assert data["failed"] == 0
+
+
+def test_check_interactions_returns_counseling_source(monkeypatch):
+    def _boom(*args, **kwargs):
+        raise RuntimeError("ollama unavailable")
+
+    monkeypatch.setattr(counseling_mod, "generate_personalized_counseling", _boom)
+
+    create = client.post("/intakes", json=SAMPLE_INTAKE)
+    assert create.status_code == 201
+    intake_id = create.json()["id"]
+
+    res = client.get(f"/intakes/{intake_id}/check-interactions")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["counseling_source"] == "template_fallback"
+    assert "counseling_points" in body
+    assert "interactions" in body

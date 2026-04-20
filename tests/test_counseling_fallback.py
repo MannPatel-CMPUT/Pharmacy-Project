@@ -35,3 +35,18 @@ def test_generate_counseling_falls_back_to_template(monkeypatch):
 
     assert result["source"] == "template_fallback"
     assert "Educational prototype only. Not for diagnosis or prescribing." in result["text"]
+
+
+def test_ollama_coerce_json_with_prose_prefix():
+    from services.ollama_service import _coerce_json
+
+    text = (
+        'Here is the counseling JSON:\n'
+        '{"interaction_summary": "s", "patient_specific_risk": "r", '
+        '"top_counseling_points": ["a"], "monitoring_points": [], '
+        '"red_flags": [], "when_to_contact_clinician": [], "evidence_used": ["e"]}'
+    )
+    d = _coerce_json(text)
+    assert d["interaction_summary"] == "s"
+    assert d["patient_specific_risk"] == "r"
+    assert d["top_counseling_points"] == ["a"]

@@ -7,6 +7,7 @@ It does NOT detect interactions or assign severity.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 
@@ -14,7 +15,7 @@ import httpx
 
 DEFAULT_BASE_URL = "http://localhost:11434"
 DEFAULT_MODEL = "llama3"
-REQUEST_TIMEOUT_SECONDS = 20.0
+REQUEST_TIMEOUT_SECONDS = float(os.getenv("OLLAMA_TIMEOUT_SECONDS", "30"))
 MAX_JSON_RETRIES = 2
 
 REQUIRED_KEYS = [
@@ -26,6 +27,8 @@ REQUIRED_KEYS = [
     "when_to_contact_clinician",
     "evidence_used",
 ]
+
+logger = logging.getLogger(__name__)
 
 
 def get_ollama_config() -> dict[str, str]:
@@ -66,6 +69,8 @@ def _build_prompt(interactions: list[dict], patient_context: dict[str, Any]) -> 
     return (
         "You are generating pharmacy counseling text from precomputed interaction facts. "
         "Do not detect new interactions. Do not change severity labels. "
+        "Personalize wording to the patient context (age, allergies, notes) when relevant, "
+        "but do not invent clinical facts beyond the interaction list. "
         "Use ONLY the facts given. Return strict JSON with keys: "
         f"{', '.join(REQUIRED_KEYS)}.\n\n"
         f"Patient context JSON:\n{json.dumps(patient_context, ensure_ascii=False)}\n\n"
@@ -74,16 +79,39 @@ def _build_prompt(interactions: list[dict], patient_context: dict[str, Any]) -> 
 
 
 def _coerce_json(response_text: str) -> dict[str, Any]:
+    """Parse first JSON object from model output (handles prose, markdown fences)."""
     text = (response_text or "").strip()
     if not text:
         raise ValueError("Empty Ollama response")
 
-    # Allow fenced JSON blocks.
-    if text.startswith("```"):
-        text = text.strip("`")
-        text = text.replace("json", "", 1).strip()
+    # Strip common markdown fences and take the fenced block if present.
+    if "```" in text:
+        segments = text.split("```")
+        for segment in segments:
+            seg = segment.strip()
+            if not seg:
+                continue
+            if seg.lower().startswith("json"):
+                seg = seg[4:].lstrip().strip()
+            if seg.startswith("{"):
+                text = seg
+                break
 
-    return json.loads(text)
+    start = text.find("{")
+    if start == -1:
+        logger.debug("Ollama response had no JSON object start: %r", text[:400])
+        raise ValueError("No JSON object found in Ollama response")
+
+    decoder = json.JSONDecoder()
+    try:
+        obj, _end = decoder.raw_decode(text[start:])
+    except json.JSONDecodeError as exc:
+        logger.debug("Ollama JSON decode failed: %s text=%r", exc, text[:400])
+        raise ValueError(f"Invalid JSON in Ollama response: {exc}") from exc
+
+    if not isinstance(obj, dict):
+        raise ValueError("Ollama JSON root must be an object")
+    return obj
 
 
 def _validate_output(payload: dict[str, Any], interactions: list[dict]) -> dict[str, Any]:
@@ -130,10 +158,12 @@ def generate_personalized_counseling(
             )
             response.raise_for_status()
             payload = response.json()
-            parsed = _coerce_json(payload.get("response", ""))
+            raw = payload.get("response", "")
+            parsed = _coerce_json(raw)
             return _validate_output(parsed, interactions)
         except Exception as exc:
             last_error = str(exc)
+            logger.warning("Ollama generate attempt failed: %s", last_error)
             continue
 
     raise RuntimeError(f"Ollama generation failed: {last_error}")

@@ -71,6 +71,11 @@ Key values:
 - `FRONTEND_URL` (default: `http://localhost:8080`)
 - `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
 - `OLLAMA_MODEL` (default: `llama3`)
+- `OLLAMA_TIMEOUT_SECONDS` (optional, default `30`) — HTTP timeout for Ollama `/api/generate`
+- `OPENFDA_API_KEY` (optional) — [openFDA API key](https://open.fda.gov/apis/authentication/) to reduce rate-limit failures
+- `OPENFDA_TIMEOUT_SECONDS` (optional, default `30`) — HTTP timeout for openFDA label fetch
+
+**Render / cloud:** `OLLAMA_BASE_URL=http://localhost:11434` points at the **container**, not your laptop. Ollama will be unreachable unless you run Ollama on a reachable host (VPS, tunnel) and set `OLLAMA_BASE_URL` to that URL. Counseling then falls back to the template engine (see `counseling_source` on `GET /intakes/{id}/check-interactions`).
 
 ---
 
@@ -82,16 +87,23 @@ Key values:
 curl -X POST http://localhost:8000/knowledge/openfda-sync
 ```
 
-Example response:
+Example response (counts only; failures include `error` and HTTP details when the fetch fails):
 
 ```json
 {
   "total_fetched": 25,
   "parsed": 16,
   "inserted": 9,
-  "failed": 3
+  "skipped": 40,
+  "failed": 0,
+  "skip_reason_counts": {
+    "low_confidence": 30,
+    "existing_pair": 10
+  }
 }
 ```
+
+When `inserted` is `0` but labels were fetched, the API may include a `hint` explaining that only **high-confidence** pattern matches become `DrugInteraction` rows (medium-confidence co-mentions are counted under `skipped` / `low_confidence`).
 
 ---
 

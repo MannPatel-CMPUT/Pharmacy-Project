@@ -40,6 +40,8 @@ def generate_counseling_points(
     interactions: Optional[list[dict]] = None,
     patient_age: Optional[int] = None,
     intake_id: Optional[int] = None,
+    patient_allergies: Optional[str] = None,
+    notes: Optional[str] = None,
 ) -> str:
     result = generate_counseling(
         db,
@@ -48,5 +50,7 @@ def generate_counseling_points(
         interactions=interactions or [],
         patient_age=patient_age,
         intake_id=intake_id,
+        patient_allergies=patient_allergies,
+        notes=notes,
     )
     return result["text"]

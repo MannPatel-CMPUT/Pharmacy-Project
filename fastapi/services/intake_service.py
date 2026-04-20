@@ -7,6 +7,7 @@ import logging
 from core.constants import ALLOWED_STATUSES, ALLOWED_TRANSITIONS
 from schemas.intake import IntakeCreate
 from database import Intake, StatusHistory
+from services.counseling_service import generate_counseling
 from services.drug_interaction_service import check_drug_interactions, generate_counseling_points
 from services.normalization_service import normalize_and_match
 
@@ -47,6 +48,8 @@ def create_intake(db: Session, data: IntakeCreate) -> Intake:
         interactions=interactions,
         patient_age=data.patient_age,
         intake_id=intake.id,
+        patient_allergies=data.patient_allergies,
+        notes=data.notes,
     )
     intake.counseling_points = counseling
     db.commit()
@@ -179,21 +182,25 @@ def check_interactions_for_intake(db: Session, intake_id: int) -> dict:
         patient_age=intake.patient_age,
     )
     intake.drug_interactions = json.dumps(interactions) if interactions else None
-    intake.counseling_points = generate_counseling_points(
+    counseling_result = generate_counseling(
         db,
         patient_name=intake.patient_name,
         medications=intake.medications,
         interactions=interactions,
         patient_age=intake.patient_age,
         intake_id=intake.id,
+        patient_allergies=intake.patient_allergies,
+        notes=intake.notes,
     )
+    intake.counseling_points = counseling_result["text"]
     intake.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(intake)
 
     return {
         "interactions": interactions,
-        "counseling_points": intake.counseling_points
+        "counseling_points": intake.counseling_points,
+        "counseling_source": counseling_result["source"],
     }
 
 
