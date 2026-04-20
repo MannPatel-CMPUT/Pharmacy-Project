@@ -1,4 +1,4 @@
-"""Manual knowledge dataset ingestion (CSV/JSON)."""
+"""Manual knowledge dataset ingestion (CSV/JSON) and openFDA label JSON bundles."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from services.knowledge_repository import (
     interaction_exists,
     ordered_pair,
 )
+from services.openfda_ingestion_service import ingest_openfda_label_results, is_openfda_label_bundle
 
 ALLOWED_SEVERITIES = {"contraindicated", "major", "moderate", "minor"}
 REQUIRED_FIELDS = ["drug_a", "drug_b", "severity", "clinical_effect", "mechanism", "monitoring"]
@@ -30,8 +31,7 @@ def _parse_csv(text: str) -> list[dict[str, Any]]:
     return [dict(row) for row in reader]
 
 
-def _parse_json(text: str) -> list[dict[str, Any]]:
-    payload = json.loads(text)
+def _parse_json_payload(payload: Any) -> list[dict[str, Any]]:
     if isinstance(payload, list):
         return [row for row in payload if isinstance(row, dict)]
     if isinstance(payload, dict):
@@ -61,29 +61,94 @@ def _validate_row(row: dict[str, Any]) -> tuple[bool, dict[str, str]]:
     return True, normalized
 
 
-def ingest_knowledge_dataset(filename: str, content: bytes, db: Session) -> dict[str, int]:
-    stats = {"total_rows": 0, "inserted": 0, "skipped": 0, "failed": 0}
+def ingest_knowledge_dataset(filename: str, content: bytes, db: Session) -> dict[str, Any]:
+    lower_name = filename.lower()
+    if not (lower_name.endswith(".csv") or lower_name.endswith(".json")):
+        return {
+            "total_rows": 0,
+            "inserted": 0,
+            "skipped": 0,
+            "failed": 1,
+            "fatal": True,
+            "error": "Unsupported file type. Use .csv or .json",
+        }
 
     try:
         text = content.decode("utf-8")
     except Exception:
-        stats["failed"] = 1
-        return stats
+        return {
+            "total_rows": 0,
+            "inserted": 0,
+            "skipped": 0,
+            "failed": 1,
+            "fatal": True,
+            "error": "File is not valid UTF-8 text",
+        }
 
-    try:
-        lower_name = filename.lower()
-        if lower_name.endswith(".csv"):
-            rows = _parse_csv(text)
-        elif lower_name.endswith(".json"):
-            rows = _parse_json(text)
-        else:
-            stats["failed"] = 1
+    if lower_name.endswith(".json"):
+        try:
+            payload = json.loads(text)
+        except json.JSONDecodeError as exc:
+            return {
+                "total_rows": 0,
+                "inserted": 0,
+                "skipped": 0,
+                "failed": 1,
+                "fatal": True,
+                "error": f"Invalid JSON: {exc}",
+            }
+
+        if is_openfda_label_bundle(payload):
+            stats = ingest_openfda_label_results(db, payload["results"])
+            stats["format"] = "openfda_label_json"
             return stats
-    except Exception:
-        stats["failed"] = 1
-        return stats
 
-    stats["total_rows"] = len(rows)
+        try:
+            rows = _parse_json_payload(payload)
+        except Exception:
+            return {
+                "total_rows": 0,
+                "inserted": 0,
+                "skipped": 0,
+                "failed": 1,
+                "fatal": True,
+                "error": "Could not parse JSON rows",
+            }
+
+        if not rows:
+            return {
+                "total_rows": 0,
+                "inserted": 0,
+                "skipped": 0,
+                "failed": 1,
+                "fatal": True,
+                "error": (
+                    "Unrecognized JSON shape. Expected either openFDA label export "
+                    '{"meta":..., "results":[...]} or a list / {"rows":[...]} of objects with '
+                    f"fields: {', '.join(REQUIRED_FIELDS)}"
+                ),
+            }
+    else:
+        try:
+            rows = _parse_csv(text)
+        except Exception:
+            return {
+                "total_rows": 0,
+                "inserted": 0,
+                "skipped": 0,
+                "failed": 1,
+                "fatal": True,
+                "error": "Could not parse CSV",
+            }
+
+    stats: dict[str, Any] = {
+        "total_rows": len(rows),
+        "inserted": 0,
+        "skipped": 0,
+        "failed": 0,
+        "format": "dataset_rows",
+    }
+
     known_aliases = {row.alias for row in db.query(DrugAlias.alias).all()}
     known_pairs = {
         ordered_pair(row.drug_a_id, row.drug_b_id)

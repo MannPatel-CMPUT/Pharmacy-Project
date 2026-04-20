@@ -164,11 +164,7 @@ def dispense_medication(db: Session, intake_id: int, dispensed: str) -> Optional
     return intake
 
 
-def check_interactions_for_intake(db: Session, intake_id: int) -> dict:
-    intake = get_intake_by_id(db, intake_id)
-    if not intake:
-        return None
-
+def _recompute_intake_interactions(db: Session, intake: Intake) -> dict:
     logger.info(
         "intake recheck normalized_medications intake_id=%s new=%s current=%s",
         intake.id,
@@ -202,6 +198,25 @@ def check_interactions_for_intake(db: Session, intake_id: int) -> dict:
         "counseling_points": intake.counseling_points,
         "counseling_source": counseling_result["source"],
     }
+
+
+def check_interactions_for_intake(db: Session, intake_id: int) -> dict:
+    intake = get_intake_by_id(db, intake_id)
+    if not intake:
+        return None
+    return _recompute_intake_interactions(db, intake)
+
+
+def refresh_all_intake_interaction_snapshots(db: Session) -> dict[str, int]:
+    """Re-run interaction detection and counseling for every intake (e.g. after knowledge sync)."""
+    updated = 0
+    for intake in db.query(Intake).all():
+        try:
+            _recompute_intake_interactions(db, intake)
+            updated += 1
+        except Exception:
+            logger.exception("refresh snapshot failed intake_id=%s", intake.id)
+    return {"intakes_updated": updated}
 
 
 def get_status_history(db: Session, intake_id: int) -> List[StatusHistory]:

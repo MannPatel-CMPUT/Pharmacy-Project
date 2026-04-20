@@ -245,6 +245,7 @@ def test_openfda_sync_endpoint(monkeypatch):
     assert data["parsed"] >= 1
     assert data["inserted"] >= 1
     assert data["failed"] == 0
+    assert "intakes_updated" in data
 
 
 def test_openfda_sync_populates_interactions_for_new_intake(monkeypatch):
@@ -280,7 +281,9 @@ def test_openfda_sync_populates_interactions_for_new_intake(monkeypatch):
 
     sync_response = client.post("/knowledge/openfda-sync")
     assert sync_response.status_code == 200
-    assert sync_response.json()["inserted"] >= 4
+    sync_body = sync_response.json()
+    assert sync_body["inserted"] >= 4
+    assert "intakes_updated" in sync_body
 
     intake_response = client.post(
         "/intakes",
@@ -345,6 +348,7 @@ def test_knowledge_upload_csv_endpoint():
     assert data["inserted"] == 2
     assert data["skipped"] == 1
     assert data["failed"] == 0
+    assert "intakes_updated" in data
 
 
 def test_knowledge_upload_json_endpoint_with_bad_rows():
@@ -382,6 +386,29 @@ def test_knowledge_upload_json_endpoint_with_bad_rows():
     assert data["inserted"] == 1
     assert data["skipped"] == 2
     assert data["failed"] == 0
+    assert "intakes_updated" in data
+
+
+def test_knowledge_upload_openfda_label_json_endpoint():
+    bundle = {
+        "meta": {"results": {"total": 1}},
+        "results": [
+            {
+                "openfda": {"generic_name": ["Warfarin"], "set_id": ["upload-set"]},
+                "drug_interactions": [
+                    "Concurrent use of warfarin and NSAIDs increases bleeding risk."
+                ],
+            },
+        ],
+    }
+    files = {"file": ("drug-label-0001.json", json.dumps(bundle), "application/json")}
+    response = client.post("/knowledge/upload", files=files)
+    assert response.status_code == 200
+    data = response.json()
+    assert data.get("format") == "openfda_label_json"
+    assert data["total_fetched"] == 1
+    assert data["inserted"] >= 1
+    assert "intakes_updated" in data
 
 
 def test_check_interactions_returns_counseling_source(monkeypatch):

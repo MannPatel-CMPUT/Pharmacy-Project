@@ -74,6 +74,7 @@ Key values:
 - `OLLAMA_TIMEOUT_SECONDS` (optional, default `30`) — HTTP timeout for Ollama `/api/generate`
 - `OPENFDA_API_KEY` (optional) — [openFDA API key](https://open.fda.gov/apis/authentication/) to reduce rate-limit failures
 - `OPENFDA_TIMEOUT_SECONDS` (optional, default `30`) — HTTP timeout for openFDA label fetch
+- `OPENFDA_ALLOW_MEDIUM` (optional, default `true`) — also persist **medium-confidence** co-mention pairs from SPL text as `DrugInteraction` rows with `source=openfda_medium`
 
 **Render / cloud:** `OLLAMA_BASE_URL=http://localhost:11434` points at the **container**, not your laptop. Ollama will be unreachable unless you run Ollama on a reachable host (VPS, tunnel) and set `OLLAMA_BASE_URL` to that URL. Counseling then falls back to the template engine (see `counseling_source` on `GET /intakes/{id}/check-interactions`).
 
@@ -99,15 +100,24 @@ Example response (counts only; failures include `error` and HTTP details when th
   "skip_reason_counts": {
     "low_confidence": 30,
     "existing_pair": 10
-  }
+  },
+  "intakes_updated": 3
 }
 ```
 
-When `inserted` is `0` but labels were fetched, the API may include a `hint` explaining that only **high-confidence** pattern matches become `DrugInteraction` rows (medium-confidence co-mentions are counted under `skipped` / `low_confidence`).
+Successful `openfda-sync` and `/knowledge/upload` responses include **`intakes_updated`**: the server re-runs interaction detection for **every intake** so list cards pick up new `DrugInteraction` rows without manual **Re-check**.
+
+When `inserted` is `0` but labels were fetched, the API may include a `hint` (e.g. duplicates, pattern misses, or `OPENFDA_ALLOW_MEDIUM=false` skipping co-mentions).
 
 ---
 
 ## Dataset Upload Usage
+
+### openFDA label JSON (bulk download from open.fda.gov)
+
+You can upload the same JSON shape the API returns: an object with **`results`** (array of SPL label objects), optionally with **`meta`**. Example: `drug-label-0001-of-0013.json` from the openFDA site. The app ingests it the same way as **Sync openFDA** and returns `format: "openfda_label_json"` plus the usual `total_fetched` / `parsed` / `inserted` / `skipped` / `failed` fields.
+
+### Flat dataset (CSV or curated JSON)
 
 Upload CSV/JSON containing fields:
 

@@ -232,7 +232,13 @@ def _extract_pairs(text: str, index_aliases: dict[str, int], current_drug_name: 
     return extracted
 
 
-def _upsert_interaction(db: Session, drug_a_id: int, drug_b_id: int, severity: str, description: str) -> bool:
+def _allow_medium_inserts() -> bool:
+    return os.getenv("OPENFDA_ALLOW_MEDIUM", "true").lower() in ("1", "true", "yes")
+
+
+def _upsert_interaction(
+    db: Session, drug_a_id: int, drug_b_id: int, severity: str, description: str, *, source: str = "openfda"
+) -> bool:
     pair = ordered_pair(drug_a_id, drug_b_id)
     existing = db.query(DrugInteraction).filter(
         DrugInteraction.drug_a_id == pair[0],
@@ -249,7 +255,7 @@ def _upsert_interaction(db: Session, drug_a_id: int, drug_b_id: int, severity: s
             severity=severity,
             description=description[:2000],
             clinical_effect=description[:2000],
-            source="openfda",
+            source=source,
         )
     )
     return True
@@ -320,9 +326,10 @@ def _fetch_openfda_results(limit: int) -> tuple[list[dict] | None, dict[str, Any
     return results, {}
 
 
-def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, Any]:
+def ingest_openfda_label_results(db: Session, results: list[dict]) -> dict[str, Any]:
+    """Ingest a list of openFDA SPL label objects (same shape as API `results`)."""
     stats: dict[str, Any] = {
-        "total_fetched": 0,
+        "total_fetched": len(results),
         "parsed": 0,
         "inserted": 0,
         "failed": 0,
@@ -330,19 +337,13 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, Any]:
         "skip_reason_counts": {},
     }
 
-    results, err = _fetch_openfda_results(limit)
-    if err:
-        stats.update(err)
-        return stats
-
-    stats["total_fetched"] = len(results)
-
-    # Build alias index from currently known aliases for sentence matching.
     known_aliases = {row.alias: row.drug_id for row in db.query(DrugAlias).all()}
     known_pairs = {
         (min(row.drug_a_id, row.drug_b_id), max(row.drug_a_id, row.drug_b_id))
         for row in db.query(DrugInteraction.drug_a_id, DrugInteraction.drug_b_id).all()
     }
+
+    allow_medium = _allow_medium_inserts()
 
     for item in results:
         source_id = "unknown"
@@ -406,12 +407,14 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, Any]:
                         reason = ""
                         stats["parsed"] += 1
 
-                        if confidence != "high":
+                        eligible = confidence == "high" or (confidence == "medium" and allow_medium)
+                        if not eligible:
                             stats["skipped"] += 1
                             action = "skip"
                             reason = "low_confidence"
                             _bump_skip_reason(stats, reason)
                         else:
+                            row_source = "openfda" if confidence == "high" else "openfda_medium"
                             left_drug = get_or_create_drug(db, left_name)
                             right_drug = get_or_create_drug(db, right_name)
                             ensure_alias(db, left_drug, left_name)
@@ -423,7 +426,9 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, Any]:
                                 reason = "existing_pair"
                                 _bump_skip_reason(stats, reason)
                             else:
-                                inserted = _upsert_interaction(db, left_drug.id, right_drug.id, severity, sentence)
+                                inserted = _upsert_interaction(
+                                    db, left_drug.id, right_drug.id, severity, sentence, source=row_source
+                                )
                                 if inserted:
                                     stats["inserted"] += 1
                                     known_pairs.add(pair)
@@ -485,9 +490,9 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, Any]:
         and (stats.get("parsed", 0) > 0 or stats.get("skipped", 0) > 0)
     ):
         stats["hint"] = (
-            "No new DrugInteraction rows were inserted. Common reasons: pairs are medium-confidence only "
-            "(skipped as low_confidence), duplicates (existing_pair), or label text did not match high-confidence patterns. "
-            "See skip_reason_counts."
+            "No new DrugInteraction rows were inserted. Common reasons: duplicates (existing_pair), "
+            "label text did not match extraction patterns, or medium-confidence pairs were skipped "
+            f"(OPENFDA_ALLOW_MEDIUM is {'on' if allow_medium else 'off'}). See skip_reason_counts."
         )
 
     logger.info(
@@ -500,3 +505,37 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, Any]:
         stats.get("skip_reason_counts"),
     )
     return stats
+
+
+def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, Any]:
+    results, err = _fetch_openfda_results(limit)
+    if err:
+        stats: dict[str, Any] = {
+            "total_fetched": 0,
+            "parsed": 0,
+            "inserted": 0,
+            "failed": 0,
+            "skipped": 0,
+            "skip_reason_counts": {},
+        }
+        stats.update(err)
+        return stats
+
+    return ingest_openfda_label_results(db, results)
+
+
+def is_openfda_label_bundle(payload: Any) -> bool:
+    """True if JSON looks like openFDA Human Drug Label export (results[] of SPL objects)."""
+    if not isinstance(payload, dict):
+        return False
+    results = payload.get("results")
+    if not isinstance(results, list) or not results:
+        return False
+    first = results[0]
+    if not isinstance(first, dict):
+        return False
+    if "openfda" in first:
+        return True
+    if any(k in first for k in ("drug_interactions", "warnings", "contraindications")):
+        return True
+    return False

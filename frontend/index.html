@@ -658,7 +658,18 @@
         }, 20000);
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Upload failed');
-        out.textContent = `Rows: ${data.total_rows}, inserted: ${data.inserted}, skipped: ${data.skipped}, failed: ${data.failed}`;
+        const fmt = data.format ? `format: ${data.format}. ` : '';
+        const err = data.error ? ` error: ${data.error}` : '';
+        if (data.format === 'openfda_label_json') {
+          const skipped = data.skipped != null ? `, skipped: ${data.skipped}` : '';
+          const skips = data.skip_reason_counts && Object.keys(data.skip_reason_counts).length
+            ? ` skip_reasons: ${JSON.stringify(data.skip_reason_counts)}` : '';
+          out.textContent = `${fmt}Fetched: ${data.total_fetched}, parsed: ${data.parsed}, inserted: ${data.inserted}, failed: ${data.failed}${skipped}${skips}. Intakes refreshed: ${data.intakes_updated ?? '—'}${err}`;
+        } else {
+          out.textContent = `${fmt}Rows: ${data.total_rows}, inserted: ${data.inserted}, skipped: ${data.skipped}, failed: ${data.failed}. Intakes refreshed: ${data.intakes_updated ?? '—'}${err}`;
+        }
+        loadIntakes();
+        loadStatistics();
       } catch (err) {
         out.textContent = `Upload failed: ${err.message}`;
       }
@@ -677,7 +688,9 @@
         const skips = data.skip_reason_counts && Object.keys(data.skip_reason_counts).length
           ? ` | skip_reasons: ${JSON.stringify(data.skip_reason_counts)}`
           : '';
-        out.textContent = `Fetched: ${data.total_fetched}, parsed: ${data.parsed}, inserted: ${data.inserted}, failed: ${data.failed}${skipped}${skips}${err}${hint}`;
+        out.textContent = `Fetched: ${data.total_fetched}, parsed: ${data.parsed}, inserted: ${data.inserted}, failed: ${data.failed}${skipped}${skips}${err}${hint} | intakes refreshed: ${data.intakes_updated ?? '—'}`;
+        loadIntakes();
+        loadStatistics();
       } catch (err) {
         out.textContent = `Sync error: ${err.message}`;
       }
