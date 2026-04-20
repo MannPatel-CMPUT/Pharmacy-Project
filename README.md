@@ -11,9 +11,9 @@ A FastAPI + SQLite workflow system for pharmacy intake processing with determini
 - 7-stage deterministic workflow: `new → triage → waiting_info → ready_to_fill → filled → dispensed → completed`
 - Deterministic interaction engine (no LLM detection/severity assignment)
 - Rule/data ingestion from:
-  - seed JSON (`fastapi/data/drug_interactions.json`)
-  - openFDA sync endpoint
-  - manual CSV/JSON dataset upload endpoint
+  - seed JSON (`fastapi/data/drug_interactions.json`) on startup
+  - openFDA sync endpoint (sample labels from the API)
+  - per-intake openFDA label search (see `OPENFDA_ENRICH_ON_INTAKE` in `.env.example`)
 - Counseling generation pipeline:
   - tries Ollama for structured counseling output
   - falls back to template-based deterministic counseling if Ollama fails
@@ -21,7 +21,6 @@ A FastAPI + SQLite workflow system for pharmacy intake processing with determini
   - intake creation
   - interaction/result visualization
   - openFDA sync
-  - dataset upload
 
 ---
 
@@ -105,35 +104,9 @@ Example response (counts only; failures include `error` and HTTP details when th
 }
 ```
 
-Successful `openfda-sync` and `/knowledge/upload` responses include **`intakes_updated`**: the server re-runs interaction detection for **every intake** so list cards pick up new `DrugInteraction` rows without manual **Re-check**.
+Successful `openfda-sync` responses include **`intakes_updated`**: the server re-runs interaction detection for **every intake** so list cards pick up new `DrugInteraction` rows without manual **Re-check**.
 
 When `inserted` is `0` but labels were fetched, the API may include a `hint` (e.g. duplicates, pattern misses, or `OPENFDA_ALLOW_MEDIUM=false` skipping co-mentions).
-
----
-
-## Dataset Upload Usage
-
-### openFDA label JSON (bulk download from open.fda.gov)
-
-You can upload the same JSON shape the API returns: an object with **`results`** (array of SPL label objects), optionally with **`meta`**. Example: `drug-label-0001-of-0013.json` from the openFDA site. The app ingests it the same way as **Sync openFDA** and returns `format: "openfda_label_json"` plus the usual `total_fetched` / `parsed` / `inserted` / `skipped` / `failed` fields.
-
-### Flat dataset (CSV or curated JSON)
-
-Upload CSV/JSON containing fields:
-
-- `drug_a`
-- `drug_b`
-- `severity`
-- `clinical_effect`
-- `mechanism`
-- `monitoring`
-
-### CSV upload
-
-```bash
-curl -X POST http://localhost:8000/knowledge/upload \
-  -F "file=@sample_data/interaction_dataset_sample.csv"
-```
 
 ---
 
@@ -205,7 +178,7 @@ pytest -q
 ### Current MVP strengths
 
 - Deterministic interaction detection/prioritization and workflow transitions
-- Basic ingestion from openFDA and file upload
+- Basic ingestion from openFDA (sync + per-intake enrichment)
 - Template fallback when Ollama fails
 - Automated test coverage for major backend paths
 
@@ -214,7 +187,7 @@ pytest -q
 - No auth/role-based access control
 - No migration framework (uses lightweight SQLite backfill only)
 - Limited interaction ontology and heuristic parsing for openFDA text
-- No background job queue for long-running syncs/uploads
+- No background job queue for long-running openFDA syncs
 - No observability stack (metrics/traces/alerts)
 - No hardened input sanitization/audit/PII compliance workflow
 - Limited frontend UX polish and accessibility checks

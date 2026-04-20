@@ -5,11 +5,8 @@ from __future__ import annotations
 import csv
 import io
 import json
-import os
-import tempfile
 from typing import Any
 
-from fastapi import UploadFile
 from sqlalchemy.orm import Session
 
 from database import DrugAlias, DrugInteraction
@@ -19,13 +16,7 @@ from services.knowledge_repository import (
     interaction_exists,
     ordered_pair,
 )
-from services.openfda_ingestion_service import (
-    ingest_openfda_label_json_stream,
-    ingest_openfda_label_results,
-    is_openfda_label_bundle,
-)
-
-_UPLOAD_CHUNK = 1024 * 1024
+from services.openfda_ingestion_service import ingest_openfda_label_results, is_openfda_label_bundle
 
 ALLOWED_SEVERITIES = {"contraindicated", "major", "moderate", "minor"}
 
@@ -356,95 +347,3 @@ def ingest_knowledge_dataset(filename: str, content: bytes, db: Session) -> dict
 
     db.commit()
     return stats
-
-
-def _large_json_bytes() -> int:
-    """JSON files larger than this are stream-parsed (openFDA ``results[]`` only)."""
-    raw = os.getenv("KNOWLEDGE_LARGE_JSON_BYTES", str(8 * 1024 * 1024)).strip()
-    try:
-        return max(512 * 1024, int(raw))
-    except ValueError:
-        return 8 * 1024 * 1024
-
-
-def _sniff_large_file_is_openfda_export(path: str) -> bool:
-    with open(path, "rb") as f:
-        head = f.read(1024 * 1024)
-    if b'"results"' not in head:
-        return False
-    return b'"meta"' in head or b'"openfda"' in head
-
-
-def ingest_knowledge_large_json_file(db: Session, filename: str, path: str) -> dict[str, Any]:
-    """
-    Ingest a huge openFDA label JSON file from disk using a streaming parser.
-    Other JSON shapes must stay under ``KNOWLEDGE_LARGE_JSON_BYTES`` (use normal upload).
-    """
-    if not _sniff_large_file_is_openfda_export(path):
-        return {
-            "total_fetched": 0,
-            "parsed": 0,
-            "inserted": 0,
-            "skipped": 0,
-            "failed": 1,
-            "fatal": True,
-            "format": "openfda_label_json",
-            "error": (
-                "Large JSON uploads must be an openFDA human drug label export "
-                "(top-level meta + results[]). For the bundled seed file, keep it under "
-                "KNOWLEDGE_LARGE_JSON_BYTES or upload drug_interactions.json (small)."
-            ),
-        }
-    stats = ingest_openfda_label_json_stream(db, path)
-    stats["format"] = "openfda_label_json"
-    return stats
-
-
-async def _spool_upload_to_tempfile(upload: UploadFile) -> tuple[str, int]:
-    fd, path = tempfile.mkstemp(suffix=".json-upload")
-    os.close(fd)
-    total = 0
-    try:
-        with open(path, "wb") as w:
-            while True:
-                chunk = await upload.read(_UPLOAD_CHUNK)
-                if not chunk:
-                    break
-                w.write(chunk)
-                total += len(chunk)
-        return path, total
-    except Exception:
-        if os.path.exists(path):
-            try:
-                os.unlink(path)
-            except OSError:
-                pass
-        raise
-
-
-async def ingest_knowledge_upload(file: UploadFile, db: Session) -> dict[str, Any]:
-    """
-    Accept multipart uploads: JSON is spooled to disk first so multi-hundred-MB openFDA
-    exports do not load entirely into RAM. Large JSON is stream-ingested when it looks
-    like an openFDA label bundle.
-    """
-    filename = (file.filename or "upload.bin").strip() or "upload.bin"
-    lower = filename.lower()
-
-    if lower.endswith(".json"):
-        path, size = await _spool_upload_to_tempfile(file)
-        try:
-            if size <= _large_json_bytes():
-                with open(path, "rb") as f:
-                    content = f.read()
-                return ingest_knowledge_dataset(filename, content, db)
-            return ingest_knowledge_large_json_file(db, filename, path)
-        finally:
-            if os.path.exists(path):
-                try:
-                    os.unlink(path)
-                except OSError:
-                    pass
-
-    content = await file.read()
-    return ingest_knowledge_dataset(filename, content, db)

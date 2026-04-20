@@ -5,10 +5,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base, Drug, DrugAlias, DrugInteraction
-from services.knowledge_ingestion_service import (
-    ingest_knowledge_dataset,
-    ingest_knowledge_large_json_file,
-)
+from services.knowledge_ingestion_service import ingest_knowledge_dataset
 from services.openfda_ingestion_service import ingest_openfda_label_json_stream
 
 
@@ -158,15 +155,3 @@ def test_ingest_openfda_label_json_stream_smoke(tmp_path, monkeypatch):
     assert stats.get("streaming") is True
     assert stats["total_fetched"] == 2
     assert stats["inserted"] >= 1
-
-
-def test_ingest_knowledge_large_json_rejects_non_openfda(tmp_path):
-    db = _session()
-    p = tmp_path / "seed.json"
-    p.write_text(
-        json.dumps({"interactions": {"warfarin": {"aspirin": "Major: x"}}, "categories": {}}),
-        encoding="utf-8",
-    )
-    stats = ingest_knowledge_large_json_file(db, "seed.json", str(p))
-    assert stats.get("fatal") is True
-    assert "openFDA" in (stats.get("error") or "")

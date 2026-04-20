@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert an openFDA Human Drug Label JSON file into a dataset-upload CSV."""
+"""Convert an openFDA Human Drug Label JSON file into a CSV of interaction-style rows (optional offline use)."""
 
 from __future__ import annotations
 
