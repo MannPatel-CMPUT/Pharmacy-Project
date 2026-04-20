@@ -2,14 +2,22 @@ from datetime import datetime, timezone
 from typing import Optional, List
 from sqlalchemy.orm import Session
 import json
+import logging
 
 from core.constants import ALLOWED_STATUSES, ALLOWED_TRANSITIONS
 from schemas.intake import IntakeCreate
 from database import Intake, StatusHistory
 from services.drug_interaction_service import check_drug_interactions, generate_counseling_points
+from services.normalization_service import normalize_and_match
 
+logger = logging.getLogger(__name__)
 
 def create_intake(db: Session, data: IntakeCreate) -> Intake:
+    logger.info(
+        "intake create normalized_medications new=%s current=%s",
+        normalize_and_match(data.medications, db),
+        normalize_and_match(data.current_medications, db),
+    )
     interactions = check_drug_interactions(
         db,
         data.medications,
@@ -158,6 +166,12 @@ def check_interactions_for_intake(db: Session, intake_id: int) -> dict:
     if not intake:
         return None
 
+    logger.info(
+        "intake recheck normalized_medications intake_id=%s new=%s current=%s",
+        intake.id,
+        normalize_and_match(intake.medications, db),
+        normalize_and_match(intake.current_medications, db),
+    )
     interactions = check_drug_interactions(
         db,
         intake.medications,
