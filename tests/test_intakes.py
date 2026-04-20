@@ -246,6 +246,61 @@ def test_openfda_sync_endpoint(monkeypatch):
     assert data["failed"] == 0
 
 
+def test_openfda_sync_populates_interactions_for_new_intake(monkeypatch):
+    class DummyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "results": [
+                    {
+                        "openfda": {
+                            "generic_name": ["Warfarin"],
+                            "set_id": ["set-warfarin"],
+                        },
+                        "drug_interactions": [
+                            "Concurrent use of warfarin and NSAIDs increases bleeding risk."
+                        ],
+                    },
+                    {
+                        "openfda": {
+                            "generic_name": ["Clarithromycin"],
+                            "set_id": ["set-clarithromycin"],
+                        },
+                        "drug_interactions": [
+                            "Clarithromycin may increase simvastatin concentrations."
+                        ],
+                    },
+                ]
+            }
+
+    monkeypatch.setattr(ingestion.httpx, "get", lambda *args, **kwargs: DummyResponse())
+
+    sync_response = client.post("/knowledge/openfda-sync")
+    assert sync_response.status_code == 200
+    assert sync_response.json()["inserted"] >= 4
+
+    intake_response = client.post(
+        "/intakes",
+        json={
+            "patient_name": "Interaction Test",
+            "patient_age": 67,
+            "medications": "Warfarin",
+            "current_medications": "Ibuprofen",
+            "patient_allergies": "none",
+            "notes": "",
+        },
+    )
+    assert intake_response.status_code == 201
+    data = intake_response.json()
+    assert data["drug_interactions"] is not None
+    interactions = json.loads(data["drug_interactions"])
+    assert len(interactions) == 1
+    assert interactions[0]["source"] == "openfda"
+    assert interactions[0]["normalized_pair"] == ["ibuprofen", "warfarin"]
+
+
 def test_config_status_endpoint(monkeypatch):
     class DummyTagsResponse:
         def raise_for_status(self):
