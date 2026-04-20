@@ -354,14 +354,6 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, int]:
                                 known_pairs.add(pair)
                                 action = "insert"
                                 reason = "inserted"
-                                logger.info(
-                                    "openfda stored_row source_id=%s normalized_drug_a=%s normalized_drug_b=%s drug_a_id=%s drug_b_id=%s",
-                                    source_id,
-                                    normalize_token(left_drug.generic_name),
-                                    normalize_token(right_drug.generic_name),
-                                    pair[0],
-                                    pair[1],
-                                )
                             else:
                                 stats["skipped"] += 1
                                 action = "skip"
