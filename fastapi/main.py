@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from routers.intakes import router as intakes_router
+from routers.knowledge import router as knowledge_router
+from routers.config import router as config_router
 from database import init_db
 import os
 
@@ -40,6 +42,8 @@ def health_check():
 
 
 app.include_router(intakes_router)
+app.include_router(knowledge_router)
+app.include_router(config_router)
 
 # Serve frontend static files
 frontend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
