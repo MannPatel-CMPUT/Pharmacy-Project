@@ -2,12 +2,15 @@
 Integration tests for the Pharmacy Workflow API.
 Uses an in-memory SQLite database so tests are isolated and fast.
 """
+import json
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import services.openfda_ingestion_service as ingestion
+import services.ollama_service as ollama
 from main import app
 from database import Base, get_db
 
@@ -203,3 +206,123 @@ def test_statistics_endpoint():
     data = response.json()
     assert "total" in data
     assert data["total"] >= 1
+
+
+def test_openfda_sync_endpoint(monkeypatch):
+    class DummyResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "results": [
+                    {
+                        "openfda": {
+                            "generic_name": ["Warfarin"],
+                            "brand_name": ["Coumadin"],
+                            "set_id": ["abc-123"],
+                        },
+                        "drug_interactions": [
+                            "Warfarin and aspirin may cause serious bleeding. Monitor patient closely."
+                        ],
+                        "warnings": [
+                            "Warfarin with ibuprofen should be avoided in serious cases."
+                        ],
+                        "contraindications": [
+                            "Warfarin is contraindicated with rivaroxaban."
+                        ],
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(ingestion.httpx, "get", lambda *args, **kwargs: DummyResponse())
+
+    response = client.post("/knowledge/openfda-sync")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_fetched"] == 1
+    assert data["parsed"] >= 1
+    assert data["inserted"] >= 1
+    assert data["failed"] == 0
+
+
+def test_config_status_endpoint(monkeypatch):
+    class DummyTagsResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"models": [{"name": "llama3:latest"}]}
+
+    monkeypatch.setattr(ollama.httpx, "get", lambda *args, **kwargs: DummyTagsResponse())
+    response = client.get("/config/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ollama_reachable"] is True
+    assert "configured_model" in body
+
+
+def test_create_intake_falls_back_when_ollama_unavailable(monkeypatch):
+    def raise_conn_error(*args, **kwargs):
+        raise RuntimeError("ollama down")
+
+    monkeypatch.setattr(ollama.httpx, "post", raise_conn_error)
+
+    response = client.post("/intakes", json=SAMPLE_INTAKE)
+    assert response.status_code == 201
+    data = response.json()
+    assert "Educational prototype only. Not for diagnosis or prescribing." in data["counseling_points"]
+
+
+def test_knowledge_upload_csv_endpoint():
+    csv_data = (
+        "drug_a,drug_b,severity,clinical_effect,mechanism,monitoring\n"
+        "warfarin,aspirin,major,Increased bleeding risk,Additive anticoagulation,Monitor INR and bleeding\n"
+        "warfarin,warfarin,major,Invalid self pair,NA,NA\n"
+        "lisinopril,potassium,moderate,Hyperkalemia risk,Potassium retention,Monitor potassium\n"
+    )
+    files = {"file": ("interactions.csv", csv_data, "text/csv")}
+    response = client.post("/knowledge/upload", files=files)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_rows"] == 3
+    assert data["inserted"] == 2
+    assert data["skipped"] == 1
+    assert data["failed"] == 0
+
+
+def test_knowledge_upload_json_endpoint_with_bad_rows():
+    payload = [
+        {
+            "drug_a": "atorvastatin",
+            "drug_b": "erythromycin",
+            "severity": "major",
+            "clinical_effect": "Myopathy risk",
+            "mechanism": "CYP inhibition",
+            "monitoring": "Monitor muscle symptoms",
+        },
+        {
+            "drug_a": "atorvastatin",
+            "drug_b": "erythromycin",
+            "severity": "major",
+            "clinical_effect": "Duplicate",
+            "mechanism": "Duplicate",
+            "monitoring": "Duplicate",
+        },
+        {
+            "drug_a": "",
+            "drug_b": "ibuprofen",
+            "severity": "minor",
+            "clinical_effect": "Bad row",
+            "mechanism": "Bad row",
+            "monitoring": "Bad row",
+        },
+    ]
+    files = {"file": ("interactions.json", json.dumps(payload), "application/json")}
+    response = client.post("/knowledge/upload", files=files)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["total_rows"] == 3
+    assert data["inserted"] == 1
+    assert data["skipped"] == 2
+    assert data["failed"] == 0

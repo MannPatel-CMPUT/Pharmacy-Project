@@ -3,37 +3,19 @@ from typing import Optional, List
 from sqlalchemy.orm import Session
 import json
 
+from core.constants import ALLOWED_STATUSES, ALLOWED_TRANSITIONS
 from schemas.intake import IntakeCreate
 from database import Intake, StatusHistory
 from services.drug_interaction_service import check_drug_interactions, generate_counseling_points
 
-ALLOWED_STATUSES = [
-    "new",
-    "triage",
-    "waiting_info",
-    "ready_to_fill",
-    "filled",
-    "dispensed",
-    "completed"
-]
-
-ALLOWED_TRANSITIONS = {
-    "new": ["triage"],
-    "triage": ["waiting_info", "ready_to_fill"],
-    "waiting_info": ["ready_to_fill"],
-    "ready_to_fill": ["filled"],
-    "filled": ["dispensed"],
-    "dispensed": ["completed"],
-    "completed": []
-}
-
 
 def create_intake(db: Session, data: IntakeCreate) -> Intake:
     interactions = check_drug_interactions(
+        db,
         data.medications,
-        data.current_medications
+        data.current_medications,
+        patient_age=data.patient_age,
     )
-    counseling = generate_counseling_points(data.medications, interactions)
     interactions_json = json.dumps(interactions) if interactions else None
 
     intake = Intake(
@@ -43,11 +25,22 @@ def create_intake(db: Session, data: IntakeCreate) -> Intake:
         medications=data.medications,
         current_medications=data.current_medications,
         notes=data.notes,
-        counseling_points=counseling,
         drug_interactions=interactions_json,
         status="new"
     )
     db.add(intake)
+    db.commit()
+    db.refresh(intake)
+
+    counseling = generate_counseling_points(
+        db,
+        patient_name=data.patient_name,
+        medications=data.medications,
+        interactions=interactions,
+        patient_age=data.patient_age,
+        intake_id=intake.id,
+    )
+    intake.counseling_points = counseling
     db.commit()
     db.refresh(intake)
 
@@ -166,11 +159,20 @@ def check_interactions_for_intake(db: Session, intake_id: int) -> dict:
         return None
 
     interactions = check_drug_interactions(
+        db,
         intake.medications,
-        intake.current_medications
+        intake.current_medications,
+        patient_age=intake.patient_age,
     )
     intake.drug_interactions = json.dumps(interactions) if interactions else None
-    intake.counseling_points = generate_counseling_points(intake.medications, interactions)
+    intake.counseling_points = generate_counseling_points(
+        db,
+        patient_name=intake.patient_name,
+        medications=intake.medications,
+        interactions=interactions,
+        patient_age=intake.patient_age,
+        intake_id=intake.id,
+    )
     intake.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(intake)
