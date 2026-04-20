@@ -82,6 +82,13 @@ def _safe_list(value: Any) -> list[str]:
     return []
 
 
+def _preview(text: str, limit: int = 140) -> str:
+    compact = re.sub(r"\s+", " ", (text or "").strip())
+    if len(compact) <= limit:
+        return compact
+    return f"{compact[: limit - 3]}..."
+
+
 def _severity_from_text(text: str) -> str:
     lowered = (text or "").lower()
     if "contraindicated" in lowered:
@@ -271,12 +278,26 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, int]:
     for item in results:
         try:
             aliases = _extract_aliases(item)
+            openfda = item.get("openfda", {}) or {}
+            set_id = _safe_list(openfda.get("set_id"))
+            source_id = set_id[0] if set_id else "unknown"
+            interaction_chunks = _safe_list(item.get("drug_interactions"))
+            interaction_text_exists = bool(interaction_chunks and any(chunk.strip() for chunk in interaction_chunks))
+            interaction_preview = _preview(interaction_chunks[0]) if interaction_chunks else ""
+
+            logger.info(
+                "openfda record source_id=%s interaction_text_exists=%s interaction_preview=%r",
+                source_id,
+                interaction_text_exists,
+                interaction_preview,
+            )
+
             if not aliases:
                 stats["failed"] += 1
+                logger.info("openfda record source_id=%s action=fail reason=no_aliases", source_id)
                 continue
 
             primary_name = aliases[0]
-            openfda = item.get("openfda", {}) or {}
             brand = _safe_list(openfda.get("brand_name"))
             drug = get_or_create_drug(db, primary_name, brand[0] if brand else None)
             ensure_alias(db, drug, primary_name)
@@ -287,13 +308,19 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, int]:
                 known_aliases.setdefault(alias, drug.id)
 
             sections = _split_sections(item)
-            set_id = _safe_list(openfda.get("set_id"))
-            source_id = set_id[0] if set_id else None
 
             for section_name, raw_text in sections:
-                logger.info("openfda raw_text source_id=%s section=%s text=%s", source_id, section_name, raw_text[:500])
                 parsed_pairs = _extract_pairs(raw_text, known_aliases, primary_name)
                 parsed_payload = []
+                section_preview = _preview(raw_text)
+
+                logger.info(
+                    "openfda section source_id=%s section=%s pair_extracted=%s preview=%r",
+                    source_id,
+                    section_name,
+                    bool(parsed_pairs),
+                    section_preview,
+                )
 
                 for parsed in parsed_pairs:
                     left_name = parsed["drug1"]
@@ -302,62 +329,51 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, int]:
                     confidence = parsed["confidence"]
 
                     severity = _severity_from_text(sentence)
-                    logger.info(
-                        "openfda extracted_pair source_id=%s pair=(%s,%s) severity=%s confidence=%s reason=%s",
-                        source_id,
-                        left_name,
-                        right_name,
-                        severity,
-                        confidence,
-                        parsed["reason"],
-                    )
+                    action = "unknown"
+                    reason = ""
+                    stats["parsed"] += 1
 
                     if confidence != "high":
                         stats["skipped"] += 1
-                        logger.info(
-                            "openfda skipped_pair source_id=%s pair=(%s,%s) reason=low_confidence",
-                            source_id,
-                            left_name,
-                            right_name,
-                        )
-                        continue
-
-                    left_drug = get_or_create_drug(db, left_name)
-                    right_drug = get_or_create_drug(db, right_name)
-                    ensure_alias(db, left_drug, left_name)
-                    ensure_alias(db, right_drug, right_name)
-                    pair = ordered_pair(left_drug.id, right_drug.id)
-                    if pair in known_pairs:
-                        stats["skipped"] += 1
-                        logger.info(
-                            "openfda skipped_pair source_id=%s pair=(%s,%s) reason=existing_pair",
-                            source_id,
-                            left_name,
-                            right_name,
-                        )
-                        continue
-
-                    inserted = _upsert_interaction(db, left_drug.id, right_drug.id, severity, sentence)
-                    if inserted:
-                        stats["inserted"] += 1
-                        known_pairs.add(pair)
-                        logger.info(
-                            "openfda insert_pair source_id=%s pair=(%s,%s) severity=%s",
-                            source_id,
-                            left_name,
-                            right_name,
-                            severity,
-                        )
+                        action = "skip"
+                        reason = "low_confidence"
                     else:
-                        stats["skipped"] += 1
-                        logger.info(
-                            "openfda skipped_pair source_id=%s pair=(%s,%s) reason=upsert_conflict",
-                            source_id,
-                            left_name,
-                            right_name,
-                        )
+                        left_drug = get_or_create_drug(db, left_name)
+                        right_drug = get_or_create_drug(db, right_name)
+                        ensure_alias(db, left_drug, left_name)
+                        ensure_alias(db, right_drug, right_name)
+                        pair = ordered_pair(left_drug.id, right_drug.id)
+                        if pair in known_pairs:
+                            stats["skipped"] += 1
+                            action = "skip"
+                            reason = "existing_pair"
+                        else:
+                            inserted = _upsert_interaction(db, left_drug.id, right_drug.id, severity, sentence)
+                            if inserted:
+                                stats["inserted"] += 1
+                                known_pairs.add(pair)
+                                action = "insert"
+                                reason = "inserted"
+                            else:
+                                stats["skipped"] += 1
+                                action = "skip"
+                                reason = "upsert_conflict"
 
-                    stats["parsed"] += 1
+                    logger.info(
+                        "openfda pair source_id=%s extracted=%s drug_a=%s drug_b=%s severity=%s action=%s reason=%s confidence=%s",
+                        source_id,
+                        True,
+                        left_name,
+                        right_name,
+                        severity,
+                        action,
+                        reason,
+                        confidence,
+                    )
+
+                    if action != "insert":
+                        continue
+
                     parsed_payload.append(
                         {
                             "drug1": left_name,
@@ -381,8 +397,17 @@ def sync_openfda_knowledge(db: Session, limit: int = 25) -> dict[str, int]:
                 )
         except Exception:
             stats["failed"] += 1
+            logger.exception("openfda record source_id=%s action=fail reason=exception", source_id if "source_id" in locals() else "unknown")
             db.rollback()
             continue
 
     db.commit()
+    logger.info(
+        "openfda summary total_fetched=%s parsed=%s inserted=%s skipped=%s failed=%s",
+        stats["total_fetched"],
+        stats["parsed"],
+        stats["inserted"],
+        stats["skipped"],
+        stats["failed"],
+    )
     return stats
