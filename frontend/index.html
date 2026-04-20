@@ -339,7 +339,7 @@
 
         <div class="section">
           <h2>Dataset Upload</h2>
-          <div class="hint">Upload CSV/JSON with fields: drug_a, drug_b, severity, clinical_effect, mechanism, monitoring.</div>
+          <div class="hint">Upload: (1) repo-style <code>drug_interactions.json</code> with <code>interactions</code> + optional <code>categories</code>, (2) openFDA label JSON with <code>results</code>, (3) CSV or JSON rows with drug_a, drug_b, severity, clinical_effect, mechanism, monitoring. Very large openFDA exports are stream-parsed on the server (default over 8&nbsp;MB); ingestion can take many minutes—your host/proxy may still enforce a shorter request timeout.</div>
           <div style="margin-top:8px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
             <input id="knowledge-file" type="file" accept=".csv,.json" style="max-width: 100%;" />
             <button class="btn secondary" id="upload-btn" type="button">Upload</button>
@@ -655,7 +655,7 @@
         const res = await fetchWithTimeout(`${API_BASE}/knowledge/upload`, {
           method: 'POST',
           body: formData
-        }, 20000);
+        }, 1800000);
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Upload failed');
         const fmt = data.format ? `format: ${data.format}. ` : '';
@@ -664,7 +664,11 @@
           const skipped = data.skipped != null ? `, skipped: ${data.skipped}` : '';
           const skips = data.skip_reason_counts && Object.keys(data.skip_reason_counts).length
             ? ` skip_reasons: ${JSON.stringify(data.skip_reason_counts)}` : '';
-          out.textContent = `${fmt}Fetched: ${data.total_fetched}, parsed: ${data.parsed}, inserted: ${data.inserted}, failed: ${data.failed}${skipped}${skips}. Intakes refreshed: ${data.intakes_updated ?? '—'}${err}`;
+          const stream = data.streaming ? ' (streamed from disk)' : '';
+          out.textContent = `${fmt}Fetched: ${data.total_fetched}, parsed: ${data.parsed}, inserted: ${data.inserted}, failed: ${data.failed}${skipped}${skips}${stream}. Intakes refreshed: ${data.intakes_updated ?? '—'}${err}`;
+        } else if (data.format === 'drug_interactions_seed') {
+          const pairs = data.pairs_seen != null ? `, pairs: ${data.pairs_seen}` : '';
+          out.textContent = `${fmt}Interaction pairs processed: ${data.total_rows}${pairs}, inserted: ${data.inserted}, skipped: ${data.skipped}, failed: ${data.failed}. Intakes refreshed: ${data.intakes_updated ?? '—'}${err}`;
         } else {
           out.textContent = `${fmt}Rows: ${data.total_rows}, inserted: ${data.inserted}, skipped: ${data.skipped}, failed: ${data.failed}. Intakes refreshed: ${data.intakes_updated ?? '—'}${err}`;
         }

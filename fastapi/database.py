@@ -128,89 +128,24 @@ def get_db():
         db.close()
 
 
-def _norm(value: str) -> str:
-    return (value or "").strip().lower()
-
-
-def _ordered_pair(a: int, b: int) -> tuple[int, int]:
-    return (a, b) if a <= b else (b, a)
-
-
 def _seed_drug_knowledge() -> None:
+    """Merge seed `drug_interactions.json` into the DB (idempotent). Runs even if drugs already exist."""
     data_path = os.path.join(os.path.dirname(__file__), "data", "drug_interactions.json")
     if not os.path.exists(data_path):
         return
 
+    with open(data_path, "r", encoding="utf-8") as f:
+        seed_data = json.load(f)
+
+    # Lazy import avoids circular import (services.knowledge_ingestion_service imports database).
+    from services.knowledge_ingestion_service import ingest_seed_interactions_bundle
+
     with SessionLocal() as db:
-        already_seeded = db.query(Drug).count() > 0
-        if already_seeded:
-            return
-
-        with open(data_path, "r", encoding="utf-8") as f:
-            seed_data = json.load(f)
-
-        names: set[str] = set()
-        for left, rights in seed_data.get("interactions", {}).items():
-            names.add(_norm(left))
-            for right in rights.keys():
-                names.add(_norm(right))
-        for drug_list in seed_data.get("categories", {}).values():
-            names.update(_norm(item) for item in drug_list)
-
-        if not names:
-            return
-
-        drug_by_name: dict[str, Drug] = {}
-        for name in sorted(n for n in names if n):
-            drug = Drug(generic_name=name)
-            db.add(drug)
-            db.flush()
-
-            alias = DrugAlias(drug_id=drug.id, alias=name)
-            db.add(alias)
-            drug_by_name[name] = drug
-
-        for left, rights in seed_data.get("interactions", {}).items():
-            for right, description in rights.items():
-                left_norm = _norm(left)
-                right_norm = _norm(right)
-                if not left_norm or not right_norm:
-                    continue
-                left_drug = drug_by_name.get(left_norm)
-                right_drug = drug_by_name.get(right_norm)
-                if not left_drug or not right_drug:
-                    continue
-
-                pair = _ordered_pair(left_drug.id, right_drug.id)
-                exists = db.query(DrugInteraction).filter(
-                    DrugInteraction.drug_a_id == pair[0],
-                    DrugInteraction.drug_b_id == pair[1],
-                ).first()
-                if exists:
-                    continue
-
-                normalized_description = description.strip()
-                lower_desc = normalized_description.lower()
-                if "major" in lower_desc:
-                    severity = "major"
-                elif "moderate" in lower_desc:
-                    severity = "moderate"
-                elif "minor" in lower_desc:
-                    severity = "minor"
-                else:
-                    severity = "unknown"
-
-                db.add(
-                    DrugInteraction(
-                        drug_a_id=pair[0],
-                        drug_b_id=pair[1],
-                        severity=severity,
-                        description=normalized_description,
-                        clinical_effect=normalized_description,
-                        source="seed_json",
-                    )
-                )
         try:
+            stats = ingest_seed_interactions_bundle(db, seed_data, interaction_source="seed_json")
+            if stats.get("fatal"):
+                logger.warning("seed skipped fatal=%s error=%s", stats.get("fatal"), stats.get("error"))
+                return
             db.commit()
         except IntegrityError:
             # Parallel app startups can race on seed inserts; skip duplicates gracefully.

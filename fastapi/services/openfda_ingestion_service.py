@@ -7,7 +7,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Iterable
 
 import httpx
 from sqlalchemy.orm import Session
@@ -326,10 +326,27 @@ def _fetch_openfda_results(limit: int) -> tuple[list[dict] | None, dict[str, Any
     return results, {}
 
 
-def ingest_openfda_label_results(db: Session, results: list[dict]) -> dict[str, Any]:
-    """Ingest a list of openFDA SPL label objects (same shape as API `results`)."""
+def _stream_commit_interval() -> int:
+    raw = os.getenv("OPENFDA_STREAM_COMMIT_EVERY", "50").strip()
+    try:
+        n = int(raw)
+    except ValueError:
+        n = 50
+    return max(1, min(n, 5000))
+
+
+def ingest_openfda_label_items(
+    db: Session,
+    items: Iterable[dict],
+    *,
+    commit_every: int = 0,
+) -> dict[str, Any]:
+    """
+    Ingest an iterable of openFDA SPL label dicts. Memory-safe when used with a streaming parser.
+    If commit_every > 0, commits every N labels so long runs do not hold one giant transaction.
+    """
     stats: dict[str, Any] = {
-        "total_fetched": len(results),
+        "total_fetched": 0,
         "parsed": 0,
         "inserted": 0,
         "failed": 0,
@@ -345,7 +362,12 @@ def ingest_openfda_label_results(db: Session, results: list[dict]) -> dict[str, 
 
     allow_medium = _allow_medium_inserts()
 
-    for item in results:
+    for item in items:
+        if not isinstance(item, dict):
+            stats["failed"] += 1
+            continue
+
+        stats["total_fetched"] += 1
         source_id = "unknown"
         try:
             with db.begin_nested():
@@ -481,6 +503,9 @@ def ingest_openfda_label_results(db: Session, results: list[dict]) -> dict[str, 
             logger.exception("openfda record source_id=%s action=fail reason=exception", source_id)
             continue
 
+        if commit_every and stats["total_fetched"] % commit_every == 0:
+            db.commit()
+
     db.commit()
 
     if (
@@ -504,6 +529,26 @@ def ingest_openfda_label_results(db: Session, results: list[dict]) -> dict[str, 
         stats["failed"],
         stats.get("skip_reason_counts"),
     )
+    return stats
+
+
+def ingest_openfda_label_results(db: Session, results: list[dict]) -> dict[str, Any]:
+    """Ingest a list of openFDA SPL label objects (same shape as API `results`)."""
+    return ingest_openfda_label_items(db, iter(results), commit_every=0)
+
+
+def ingest_openfda_label_json_stream(db: Session, file_path: str) -> dict[str, Any]:
+    """
+    Stream-parse a local openFDA label JSON file (top-level ``results[]``) without loading the
+    entire file into memory.
+    """
+    import ijson
+
+    ce = _stream_commit_interval()
+    with open(file_path, "rb") as f:
+        iterator = ijson.items(f, "results.item", use_float=True)
+        stats = ingest_openfda_label_items(db, iterator, commit_every=ce)
+    stats["streaming"] = True
     return stats
 
 
