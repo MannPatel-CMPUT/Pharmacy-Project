@@ -1,0 +1,4 @@
+drug_a,drug_b,severity,clinical_effect,mechanism,monitoring
+warfarin,aspirin,major,Increased bleeding risk,Additive anticoagulation,Monitor INR and signs of bleeding
+lisinopril,potassium,moderate,Hyperkalemia risk,Potassium retention,Monitor potassium and renal function
+atorvastatin,erythromycin,major,Increased myopathy risk,CYP3A4 inhibition,Monitor muscle pain and CK if symptomatic

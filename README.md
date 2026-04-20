@@ -1,173 +1,199 @@
 # 💊 Pharmacy Workflow Automation System
 
-> A full-stack pharmacy prescription management platform built with **Python**, **FastAPI**, and **SQLite** — featuring automated drug interaction checking, a status-driven workflow engine, and a live web frontend. Deployed on [Render](https://render.com).
+A FastAPI + SQLite workflow system for pharmacy intake processing with deterministic drug interaction detection, optional Ollama-based counseling formatting, and knowledge ingestion pipelines.
+
+> **Disclaimer:** Educational prototype only. Not for diagnosis or prescribing.
 
 ---
 
-## 🧭 Table of Contents
+## Features
 
-- [Overview](#-overview)
-- [Live Demo](#-live-demo)
-- [Tech Stack](#-tech-stack)
-- [Features](#-features)
-- [Workflow States](#-workflow-states)
-- [Project Structure](#-project-structure)
-- [Getting Started](#-getting-started)
-- [API Reference](#-api-reference)
-- [Improvements Roadmap](#-improvements-roadmap)
-- [Author](#-author)
-
----
-
-## 📋 Overview
-
-The Pharmacy Workflow Automation System automates the end-to-end lifecycle of a pharmacy prescription intake — from patient intake creation through clinical review, dispensing, and completion. It reduces manual pharmacist effort, catches drug interactions automatically, and enforces a safe, validated workflow.
-
-This project demonstrates:
-- Real-world **REST API design** with FastAPI
-- **State machine** patterns for business workflow enforcement
-- **Cloud deployment** with environment configuration and persistent storage
-- Full-stack development across **backend API + HTML/JS frontend**
+- 7-stage deterministic workflow: `new → triage → waiting_info → ready_to_fill → filled → dispensed → completed`
+- Deterministic interaction engine (no LLM detection/severity assignment)
+- Rule/data ingestion from:
+  - seed JSON (`fastapi/data/drug_interactions.json`)
+  - openFDA sync endpoint
+  - manual CSV/JSON dataset upload endpoint
+- Counseling generation pipeline:
+  - tries Ollama for structured counseling output
+  - falls back to template-based deterministic counseling if Ollama fails
+- Frontend dashboard (vanilla HTML/CSS/JS):
+  - intake creation
+  - interaction/result visualization
+  - openFDA sync
+  - dataset upload
 
 ---
 
-## 🌐 Live Demo
+## Quick Setup
 
-> **Backend API (Render):** _Add your Render URL here_
-> **API Docs (Swagger UI):** `<your-render-url>/docs`
-> **Frontend:** Open `frontend/index.html` locally or serve via HTTP (see setup below)
-
----
-
-## 🛠 Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Backend | Python 3.11, FastAPI, Uvicorn |
-| Database | SQLite via SQLAlchemy ORM |
-| Frontend | HTML5, CSS3, Vanilla JavaScript |
-| Deployment | Render (cloud PaaS) |
-| Version Control | Git, GitHub |
-
----
-
-## ✨ Features
-
-- **Intake Management** — Create and track patient prescriptions with name, age, allergies, and medication lists
-- **Drug Interaction Checking** — Automatic detection of major/moderate severity interactions; re-check available at any time
-- **7-Stage Workflow Engine** — Validated state transitions enforce correct business logic and prevent invalid status jumps
-- **Counselling Points** — Auto-generated from medication types; fully editable by pharmacists
-- **Pharmacist Notes** — Private, editable notes per intake
-- **Dispense Tracking** — Timestamp-recorded dispense events
-- **Staff Assignment** — Assign intakes to specific staff members
-- **Statistics Dashboard** — Real-time counts by workflow status
-- **Filtering** — Filter intake list by status
-
----
-
-## 🔄 Workflow States
-
-```
-new → triage → waiting_info → ready_to_fill → filled → dispensed → completed
-```
-
-| State | Description |
-|---|---|
-| `new` | Intake just created |
-| `triage` | Under clinical review |
-| `waiting_info` | Awaiting additional patient information |
-| `ready_to_fill` | Approved and ready for pharmacist to fill |
-| `filled` | Prescription filled, awaiting pickup |
-| `dispensed` | Medication handed to patient |
-| `completed` | Workflow complete |
-
-Transitions are strictly enforced at the service layer — invalid jumps return a `400` error with a descriptive message.
-
----
-
-## 📁 Project Structure
-
-```
-Pharmacy-Project/
-├── fastapi/
-│   ├── myapi.py                  # App entry point, CORS config, router registration
-│   ├── database.py               # SQLAlchemy models, engine, session management
-│   ├── routers/
-│   │   └── intakes.py            # All /intakes REST endpoints
-│   ├── services/
-│   │   └── intake_service.py     # Business logic: state transitions, drug checks
-│   └── schemas/
-│       ├── intake.py             # Pydantic request/response models
-│       └── intake_actions.py     # Action schemas (status update, assign, dispense)
-├── frontend/
-│   └── index.html                # Single-page web UI (HTML + CSS + JS)
-├── requirements.txt
-├── Procfile                      # Render deployment command
-├── runtime.txt                   # Python version pin
-└── README.md
-```
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Python 3.8+
-- pip
-
-### Local Setup
+### 1) Clone and install
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/MannPatel-CMPUT/Pharmacy-Project.git
+git clone <repo-url>
 cd Pharmacy-Project
-
-# 2. Install dependencies
 pip install -r requirements.txt
-
-# 3. Start the backend
-cd fastapi
-uvicorn myapi:app --reload --port 8000
 ```
 
-- API base URL: `http://localhost:8000`
-- Swagger docs: `http://localhost:8000/docs`
-- Health check: `http://localhost:8000/health`
+### 2) Configure environment
 
 ```bash
-# 4. Serve the frontend (separate terminal)
+cp .env.example .env
+```
+
+Default `.env` values work locally with SQLite.
+
+### 3) Start backend
+
+```bash
+cd fastapi
+uvicorn main:app --reload --port 8000
+```
+
+### 4) Open frontend
+
+Serve `frontend/index.html` over HTTP (or use app root if backend serves static):
+
+```bash
 cd frontend
 python -m http.server 8080
-# Open http://localhost:8080
 ```
 
-> The database file `fastapi/pharmacy.db` is created automatically on first run.
+---
+
+## Environment Variables
+
+See `.env.example`.
+
+Key values:
+
+- `DATABASE_URL` (default: `sqlite:///./pharmacy.db`)
+- `FRONTEND_URL` (default: `http://localhost:8080`)
+- `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
+- `OLLAMA_MODEL` (default: `llama3`)
 
 ---
 
-## 📡 API Reference
+## openFDA Usage
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/intakes` | Create a new intake (auto drug-check) |
-| `GET` | `/intakes` | List all intakes (`?status=` / `?assigned_to=`) |
-| `GET` | `/intakes/{id}` | Get a specific intake |
-| `POST` | `/intakes/{id}/status` | Advance workflow status |
-| `POST` | `/intakes/{id}/assign` | Assign to a staff member |
-| `POST` | `/intakes/{id}/counseling` | Update counselling points |
-| `POST` | `/intakes/{id}/pharmacist-notes` | Update pharmacist notes |
-| `POST` | `/intakes/{id}/dispense` | Record dispense event |
-| `GET` | `/intakes/{id}/check-interactions` | Re-run drug interaction check |
-| `GET` | `/intakes/stats/summary` | Intake counts by status |
-| `GET` | `/health` | Health check |
+### Trigger sync
 
-Full interactive docs at `/docs` when the server is running.
+```bash
+curl -X POST http://localhost:8000/knowledge/openfda-sync
+```
 
+Example response:
+
+```json
+{
+  "total_fetched": 25,
+  "parsed": 16,
+  "inserted": 9,
+  "failed": 3
+}
+```
 
 ---
 
-## 👤 Author
+## Dataset Upload Usage
 
-**Mann Patel**
-BSc Computing Science — University of Alberta
-[LinkedIn](https://www.linkedin.com/in/mann-patel-08359a3a3/) · [GitHub](https://github.com/MannPatel-CMPUT) · mannjpatel234@gmail.com
+Upload CSV/JSON containing fields:
+
+- `drug_a`
+- `drug_b`
+- `severity`
+- `clinical_effect`
+- `mechanism`
+- `monitoring`
+
+### CSV upload
+
+```bash
+curl -X POST http://localhost:8000/knowledge/upload \
+  -F "file=@sample_data/interaction_dataset_sample.csv"
+```
+
+---
+
+## Ollama Setup
+
+1. Install Ollama locally: https://ollama.com
+2. Pull model (example):
+
+```bash
+ollama pull llama3
+```
+
+3. Ensure `.env` values:
+
+```env
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3
+```
+
+4. Check app-visible status:
+
+```bash
+curl http://localhost:8000/config/status
+```
+
+If Ollama is down/unreachable, counseling automatically falls back to template mode.
+
+---
+
+## Example API Calls
+
+### Health
+
+```bash
+curl http://localhost:8000/health
+```
+
+### Create intake
+
+```bash
+curl -X POST http://localhost:8000/intakes \
+  -H "Content-Type: application/json" \
+  -d '{
+    "patient_name": "Jane Doe",
+    "patient_age": 67,
+    "medications": "warfarin",
+    "current_medications": "aspirin"
+  }'
+```
+
+### Re-check interactions
+
+```bash
+curl http://localhost:8000/intakes/1/check-interactions
+```
+
+---
+
+## Testing
+
+```bash
+pytest -q
+```
+
+---
+
+## MVP vs Production-Level
+
+### Current MVP strengths
+
+- Deterministic interaction detection/prioritization and workflow transitions
+- Basic ingestion from openFDA and file upload
+- Template fallback when Ollama fails
+- Automated test coverage for major backend paths
+
+### Not yet production-level
+
+- No auth/role-based access control
+- No migration framework (uses lightweight SQLite backfill only)
+- Limited interaction ontology and heuristic parsing for openFDA text
+- No background job queue for long-running syncs/uploads
+- No observability stack (metrics/traces/alerts)
+- No hardened input sanitization/audit/PII compliance workflow
+- Limited frontend UX polish and accessibility checks
+
