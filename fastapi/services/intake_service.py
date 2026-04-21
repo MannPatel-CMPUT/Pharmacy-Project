@@ -5,11 +5,30 @@ import json
 import logging
 
 from core.constants import ALLOWED_STATUSES, ALLOWED_TRANSITIONS
-from schemas.intake import IntakeCreate
+from schemas.intake import IntakeCreate, EvaluateIntakeRequest
 from database import Intake, StatusHistory
 from services.counseling_service import generate_counseling
 from services.drug_interaction_service import check_drug_interactions, generate_counseling_points
 from services.normalization_service import normalize_and_match
+from services.clinical_context_service import build_allergy_warnings, build_lifestyle_warnings
+
+_SEVERITY_TO_RISK = {
+    "contraindicated": "Very High",
+    "major": "High",
+    "moderate": "Moderate",
+    "minor": "Low",
+    "unknown": "Unknown",
+}
+
+_SEVERITY_TO_RECOMMENDATION = {
+    "contraindicated": "Avoid this combination. Seek immediate medical advice.",
+    "major": "Avoid unless specifically directed by your doctor. Requires close monitoring.",
+    "moderate": "Use with caution. Monitor closely and consult your pharmacist or doctor.",
+    "minor": "Generally safe, but monitor for minor side effects. Ask pharmacist if unsure.",
+    "unknown": "Insufficient data — consult your pharmacist or doctor.",
+}
+
+_RISK_ORDER = ["None", "Low", "Moderate", "High", "Very High"]
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +224,78 @@ def check_interactions_for_intake(db: Session, intake_id: int) -> dict:
     if not intake:
         return None
     return _recompute_intake_interactions(db, intake)
+
+
+def evaluate_intake_interactions(db: Session, data: EvaluateIntakeRequest) -> dict:
+    """
+    Evaluate drug interactions, allergy warnings, and lifestyle cautions without saving an intake.
+    Uses the existing local knowledge base (seed + openFDA-enriched DB rows).
+    Does NOT call openFDA live — enrichment happens via create intake.
+    """
+    try:
+        raw_interactions = check_drug_interactions(
+            db,
+            data.medications,
+            data.current_medications,
+            patient_age=data.patient_age,
+            enrich=False,
+        )
+    except Exception:
+        logger.exception("evaluate_intake: interaction detection failed")
+        return {
+            "success": False,
+            "interactions": [],
+            "allergyWarnings": [],
+            "lifestyleWarnings": [],
+            "overallRisk": "Unknown",
+            "error": "Interaction analysis temporarily unavailable. See your intake card for details.",
+        }
+
+    structured: list[dict] = []
+    highest_risk_idx = 0
+
+    for ix in raw_interactions:
+        sev_key = (ix.get("severity") or "unknown").lower()
+        risk = _SEVERITY_TO_RISK.get(sev_key, "Unknown")
+        rec = _SEVERITY_TO_RECOMMENDATION.get(sev_key, _SEVERITY_TO_RECOMMENDATION["unknown"])
+        structured.append({
+            "drug1": ix.get("drug1", ""),
+            "drug2": ix.get("drug2", ""),
+            "severity": ix.get("severity", "Unknown"),
+            "riskFactor": risk,
+            "explanation": ix.get("description") or "Interaction identified; details unavailable.",
+            "recommendation": rec,
+            "source": ix.get("source"),
+        })
+        idx = _RISK_ORDER.index(risk) if risk in _RISK_ORDER else 0
+        highest_risk_idx = max(highest_risk_idx, idx)
+
+    allergy_warnings = build_allergy_warnings(
+        data.patient_allergies,
+        data.medications,
+        data.current_medications,
+    )
+
+    lifestyle_warnings = build_lifestyle_warnings(
+        smoking=data.smoking,
+        alcohol_use=data.alcohol_use,
+        renal_status=data.renal_status,
+        hepatic_status=data.hepatic_status,
+        pregnancy=data.pregnancy,
+        medications=data.medications,
+        current_medications=data.current_medications,
+    )
+
+    if not structured and (allergy_warnings or lifestyle_warnings):
+        highest_risk_idx = max(highest_risk_idx, 1)
+
+    return {
+        "success": True,
+        "interactions": structured,
+        "allergyWarnings": allergy_warnings,
+        "lifestyleWarnings": lifestyle_warnings,
+        "overallRisk": _RISK_ORDER[highest_risk_idx],
+    }
 
 
 def refresh_all_intake_interaction_snapshots(db: Session) -> dict[str, int]:

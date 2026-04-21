@@ -24,11 +24,13 @@ def check_drug_interactions(
     patient_age: Optional[int] = None,
     renal_status: Optional[str] = None,
     hepatic_status: Optional[str] = None,
+    enrich: bool = True,
 ) -> list[dict]:
-    try:
-        enrich_db_from_openfda_for_intake_meds(db, new_medications, current_medications)
-    except Exception:
-        logger.exception("openfda intake enrich failed; continuing with local DB only")
+    if enrich:
+        try:
+            enrich_db_from_openfda_for_intake_meds(db, new_medications, current_medications)
+        except Exception:
+            logger.exception("openfda intake enrich failed; continuing with local DB only")
 
     findings = detect_interactions(db, new_medications, current_medications)
     total_meds = len(split_medications(new_medications)) + len(split_medications(current_medications))

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import datetime
 
 
@@ -54,3 +54,36 @@ class PharmacistNotesUpdate(BaseModel):
 
 class DispenseUpdate(BaseModel):
     dispensed: str = Field(..., pattern="^(yes|no)$")
+
+
+class EvaluateIntakeRequest(BaseModel):
+    patient_name: str = Field(..., min_length=1, max_length=100)
+    patient_age: Optional[int] = Field(None, ge=0, le=150)
+    patient_allergies: Optional[str] = Field(None, max_length=500)
+    medications: str = Field(..., min_length=1)
+    current_medications: Optional[str] = None
+    notes: Optional[str] = None
+    smoking: Optional[str] = None
+    alcohol_use: Optional[str] = None
+    renal_status: Optional[str] = None
+    hepatic_status: Optional[str] = None
+    pregnancy: Optional[str] = None
+
+
+class EvaluateInteractionItem(BaseModel):
+    drug1: str
+    drug2: str
+    severity: str
+    riskFactor: str
+    explanation: str
+    recommendation: str
+    source: Optional[str] = None
+
+
+class EvaluateIntakeResponse(BaseModel):
+    success: bool
+    interactions: List[EvaluateInteractionItem]
+    allergyWarnings: List[str]
+    lifestyleWarnings: List[str]
+    overallRisk: str
+    error: Optional[str] = None

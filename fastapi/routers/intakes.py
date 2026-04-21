@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from schemas.intake import (
     IntakeCreate, IntakeOut, StatusHistoryEntry,
-    CounselingPointsUpdate, PharmacistNotesUpdate, DispenseUpdate
+    CounselingPointsUpdate, PharmacistNotesUpdate, DispenseUpdate,
+    EvaluateIntakeRequest, EvaluateIntakeResponse,
 )
 from services import intake_service
 from database import get_db
@@ -18,6 +19,16 @@ def create_intake(payload: IntakeCreate, db: Session = Depends(get_db)):
         return intake_service.create_intake(db, payload)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating intake: {str(e)}")
+
+
+@router.post("/evaluate", response_model=EvaluateIntakeResponse)
+def evaluate_intake(payload: EvaluateIntakeRequest, db: Session = Depends(get_db)):
+    """
+    Evaluate drug interactions, allergy warnings, and lifestyle cautions without saving an intake.
+    Uses the local knowledge base (seed data + previously enriched openFDA rows).
+    """
+    result = intake_service.evaluate_intake_interactions(db, payload)
+    return result
 
 
 @router.get("", response_model=List[IntakeOut])

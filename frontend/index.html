@@ -219,6 +219,47 @@
     .actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
 
     .hint { font-size: .8rem; color: var(--muted); }
+
+    .risk-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: .82rem;
+      font-weight: 700;
+      letter-spacing: .02em;
+    }
+    .risk-none     { background: #dcfce7; color: #14532d; }
+    .risk-low      { background: #fef9c3; color: #713f12; }
+    .risk-moderate { background: #ffedd5; color: #7c2d12; }
+    .risk-high     { background: #fee2e2; color: #7f1d1d; }
+    .risk-veryhigh { background: #500724; color: #fff; }
+    .risk-unknown  { background: #f3f4f6; color: #374151; }
+
+    .warn-box {
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: .85rem;
+      margin-top: 6px;
+      line-height: 1.55;
+    }
+    .warn-box.allergy  { background: #fee2e2; border: 1px solid #fca5a5; }
+    .warn-box.lifestyle { background: #fffbeb; border: 1px solid #fde68a; }
+    .warn-box.none     { background: #f0fdf4; border: 1px solid #86efac; color: #14532d; }
+
+    .ix-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-top: 8px;
+    }
+
+    .eval-panel {
+      margin-top: 16px;
+      border-top: 2px solid var(--line);
+      padding-top: 14px;
+    }
   </style>
 </head>
 <body>
@@ -326,8 +367,17 @@
             <textarea id="notes" placeholder="Optional pharmacist notes"></textarea>
           </div>
 
-          <button class="btn success" type="submit">Create Intake</button>
+          <button class="btn success" type="submit" id="submit-btn">Create Intake</button>
         </form>
+
+        <div id="eval-panel" class="eval-panel" style="display:none;">
+          <div class="row-between" style="margin-bottom:10px;">
+            <h2 style="margin:0;">Interaction Analysis</h2>
+            <button class="btn secondary" onclick="document.getElementById('eval-panel').style.display='none';" style="font-size:.75rem; padding:4px 8px;">✕ Close</button>
+          </div>
+          <div id="eval-loading" style="display:none;" class="muted">Checking interactions…</div>
+          <div id="eval-content"></div>
+        </div>
       </section>
 
       <section class="panel">
@@ -399,23 +449,170 @@
         .map(i => `${i.drug1} + ${i.drug2}: ${i.description}`);
     }
 
-    function renderInteractionSection(interactions = []) {
-      if (!interactions.length) return '<div class="muted">No interaction findings.</div>';
+    const _RISK_MAP = { contraindicated:'Very High', major:'High', moderate:'Moderate', minor:'Low', unknown:'Unknown' };
+    const _REC_MAP = {
+      contraindicated: 'Avoid this combination. Seek immediate medical advice.',
+      major: 'Avoid unless specifically directed by your doctor. Requires close monitoring.',
+      moderate: 'Use with caution. Monitor closely and consult your pharmacist or doctor.',
+      minor: 'Generally safe, but monitor for minor side effects. Ask pharmacist if unsure.',
+      unknown: 'Insufficient data — consult your pharmacist or doctor.',
+    };
 
+    function _riskClass(risk) {
+      return { 'None':'risk-none','Low':'risk-low','Moderate':'risk-moderate','High':'risk-high','Very High':'risk-veryhigh' }[risk] || 'risk-unknown';
+    }
+
+    function renderInteractionSection(interactions = []) {
+      if (!interactions.length) {
+        return '<div class="warn-box none">✓ No known drug-drug interactions found in current knowledge base.</div>';
+      }
       return interactions.map(i => {
         const sev = (i.severity || 'unknown').toLowerCase();
+        const risk = _RISK_MAP[sev] || 'Unknown';
+        const rec = _REC_MAP[sev] || _REC_MAP.unknown;
         return `
-          <div style="margin-bottom:8px;">
-            <span class="severity ${sev}">${fmt(i.severity)}</span>
-            <strong>${fmt(i.drug1)} + ${fmt(i.drug2)}</strong>
-            <div class="muted" style="margin-top:3px;">${fmt(i.description)}</div>
-            <div style="margin-top:4px;">
-              ${i.monitoring ? `<span class="pill">Monitoring: ${i.monitoring}</span>` : ''}
-              ${i.mechanism ? `<span class="pill">Mechanism: ${i.mechanism}</span>` : ''}
+          <div class="ix-card">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+              <span class="severity ${sev}">${fmt(i.severity)}</span>
+              <strong>${fmt(i.drug1).toUpperCase()} + ${fmt(i.drug2).toUpperCase()}</strong>
+              <span class="risk-badge ${_riskClass(risk)}" style="margin-left:auto;">Risk: ${risk}</span>
             </div>
+            <div style="font-size:.88rem; margin-bottom:5px;">${fmt(i.description)}</div>
+            <div style="font-size:.82rem; color:var(--muted);"><strong>Recommendation:</strong> ${rec}</div>
+            ${i.monitoring ? `<div style="margin-top:5px;"><span class="pill">Monitor: ${i.monitoring}</span></div>` : ''}
           </div>
         `;
       }).join('');
+    }
+
+    function _parsePatientContext(notes) {
+      if (!notes) return {};
+      const m = notes.match(/\[Patient Context\]([\s\S]*)/);
+      if (!m) return {};
+      const ctx = {};
+      for (const line of m[1].trim().split('\n')) {
+        const idx = line.indexOf(':');
+        if (idx > -1) ctx[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+      }
+      return ctx;
+    }
+
+    function _tokenize(text) {
+      return (text || '').toLowerCase().split(/[,;\s/]+/).filter(t => t.length > 2);
+    }
+
+    function computeAllergyWarnings(allergies, medications, currentMedications) {
+      if (!allergies) return [];
+      const nkda = new Set(['nkda','no known drug allergies','none','nka','no allergies','no known allergies','nil']);
+      if (nkda.has(allergies.trim().toLowerCase())) return [];
+      const families = {
+        penicillin: ['amoxicillin','ampicillin','piperacillin','nafcillin','oxacillin'],
+        cephalosporin: ['cephalexin','cefazolin','ceftriaxone','cefdinir','cefuroxime'],
+        sulfa: ['sulfamethoxazole','trimethoprim','sulfadiazine','sulfasalazine'],
+        nsaid: ['ibuprofen','naproxen','aspirin','diclofenac','indomethacin','celecoxib'],
+        statin: ['atorvastatin','simvastatin','rosuvastatin','pravastatin','lovastatin'],
+        opioid: ['hydrocodone','oxycodone','morphine','codeine','tramadol'],
+        benzodiazepine: ['alprazolam','lorazepam','diazepam','clonazepam'],
+      };
+      const allergyTokens = _tokenize(allergies);
+      const medTokens = _tokenize([medications, currentMedications].filter(Boolean).join(' '));
+      const warnings = [], flagged = new Set();
+      for (const allergy of allergyTokens) {
+        if (nkda.has(allergy) || allergy.length < 3) continue;
+        for (const med of medTokens) {
+          if (allergy.includes(med) || med.includes(allergy)) {
+            const key = `d|${allergy}|${med}`;
+            if (!flagged.has(key)) { flagged.add(key); warnings.push(`Allergy to '${allergy}' may be relevant to '${med}' — verify before dispensing.`); }
+          }
+        }
+        for (const [family, members] of Object.entries(families)) {
+          if (allergy === family || family.includes(allergy) || allergy.includes(family)) {
+            for (const member of members) {
+              for (const med of medTokens) {
+                if (med.includes(member) || member.includes(med)) {
+                  const key = `f|${family}|${med}`;
+                  if (!flagged.has(key)) { flagged.add(key); warnings.push(`Allergy to '${allergy}' (${family} family): '${med}' may be related — confirm with prescriber.`); }
+                }
+              }
+            }
+          }
+        }
+      }
+      return warnings;
+    }
+
+    function computeLifestyleWarnings(ctx, medications, currentMedications) {
+      const warnings = [], seen = new Set();
+      const meds = [medications, currentMedications].filter(Boolean).join(' ').toLowerCase();
+      const add = w => { if (!seen.has(w)) { seen.add(w); warnings.push(w); } };
+      const smoking = (ctx.smoking || '').toLowerCase();
+      const alcohol = (ctx.alcohol_use || '').toLowerCase();
+      const renal = (ctx.renal_status || '').toLowerCase();
+      const hepatic = (ctx.hepatic_status || '').toLowerCase();
+      const preg = (ctx.pregnancy || '').toLowerCase();
+      if (['yes','former'].includes(smoking))
+        add('Smoking can affect metabolism of many medications and may reduce effectiveness. Dose adjustments may be needed.');
+      if (['regular','occasional'].includes(alcohol))
+        add('Alcohol use may increase risk of side effects (drowsiness, dizziness, stomach upset). Consult your pharmacist.');
+      if (alcohol === 'regular' && /warfarin|metronidazole|isoniazid|acetaminophen/.test(meds))
+        add('Regular alcohol use with one or more of your medications may cause serious harm — increased bleeding or liver damage risk.');
+      if (alcohol && /alprazolam|lorazepam|diazepam|clonazepam|zolpidem|hydrocodone|oxycodone|morphine|codeine|tramadol/.test(meds))
+        add('Alcohol combined with sedative or pain medications can cause dangerous over-sedation. Avoid alcohol entirely.');
+      if (['mild','moderate','severe'].includes(renal))
+        add(`Kidney impairment (${renal}) may affect medication dosing and clearance — extra monitoring may be required.`);
+      if (['mild','moderate','severe'].includes(hepatic))
+        add(`Liver impairment (${hepatic}) affects drug metabolism — some medications may be less effective or more toxic.`);
+      if (preg === 'yes')
+        add('Please confirm all medications are safe during pregnancy with your doctor or pharmacist.');
+      return warnings;
+    }
+
+    function renderEvaluateResult(data) {
+      if (!data.success) {
+        return `<div class="muted">⚠ ${data.error || 'Analysis failed. See intake card for interaction details.'}</div>`;
+      }
+      const interactions = data.interactions || [];
+      const allergyWarnings = data.allergyWarnings || [];
+      const lifestyleWarnings = data.lifestyleWarnings || [];
+      const risk = data.overallRisk || 'Unknown';
+      const rc = _riskClass(risk);
+
+      let html = `
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+          <strong>Overall Risk:</strong>
+          <span class="risk-badge ${rc}">${risk === 'None' ? '✓ None' : '⚠ ' + risk}</span>
+          ${!interactions.length && !allergyWarnings.length && !lifestyleWarnings.length
+            ? '<span class="muted" style="font-size:.84rem;">No warnings detected.</span>' : ''}
+        </div>`;
+
+      if (!interactions.length) {
+        html += '<div class="warn-box none">✓ No known drug-drug interactions found in current knowledge base.</div>';
+      } else {
+        html += '<div style="margin-bottom:4px;"><strong>Drug Interactions</strong></div>';
+        html += interactions.map(i => `
+          <div class="ix-card">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+              <span class="severity ${(i.severity||'unknown').toLowerCase()}">${i.severity}</span>
+              <strong>${i.drug1.toUpperCase()} + ${i.drug2.toUpperCase()}</strong>
+              <span class="risk-badge ${_riskClass(i.riskFactor)}" style="margin-left:auto;">Risk: ${i.riskFactor}</span>
+            </div>
+            <div style="font-size:.88rem; margin-bottom:5px;">${i.explanation}</div>
+            <div style="font-size:.82rem; color:var(--muted);"><strong>Recommendation:</strong> ${i.recommendation}</div>
+            ${i.source ? `<div style="margin-top:4px; font-size:.78rem; color:var(--muted);">Source: ${i.source}</div>` : ''}
+          </div>`).join('');
+      }
+
+      if (allergyWarnings.length) {
+        html += `<div style="margin-top:12px;"><strong style="color:var(--danger);">⚠ Allergy Warnings</strong>
+          <div class="warn-box allergy">${allergyWarnings.map(w => `<div style="margin-bottom:3px;">${w}</div>`).join('')}</div></div>`;
+      }
+
+      if (lifestyleWarnings.length) {
+        html += `<div style="margin-top:12px;"><strong style="color:var(--warning);">⚠ Lifestyle & Risk Factor Cautions</strong>
+          <div class="warn-box lifestyle">${lifestyleWarnings.map(w => `<div style="margin-bottom:3px;">${w}</div>`).join('')}</div></div>`;
+      }
+
+      return html;
     }
 
     function renderEvidenceSection(interactions = []) {
@@ -472,8 +669,18 @@
         list.innerHTML = intakes.map(intake => {
           const interactions = intake.drug_interactions ? JSON.parse(intake.drug_interactions) : [];
           const counselingPoints = parseCounselingPoints(intake.counseling_points || '');
-          const redFlags = redFlagsFromInteractions(interactions);
           const generationMode = detectGenerationMode(intake.counseling_points || '');
+          const ctx = _parsePatientContext(intake.notes);
+          const allergyWarnings = computeAllergyWarnings(intake.patient_allergies, intake.medications, intake.current_medications);
+          const lifestyleWarnings = computeLifestyleWarnings(ctx, intake.medications, intake.current_medications);
+
+          const highestSev = interactions.reduce((acc, i) => {
+            const order = ['contraindicated','major','moderate','minor','unknown'];
+            const idx = order.indexOf((i.severity||'unknown').toLowerCase());
+            return idx < acc ? idx : acc;
+          }, 99);
+          const overallRisk = highestSev <= 1 ? 'High' : highestSev === 2 ? 'Moderate' : highestSev === 3 ? 'Low' : interactions.length ? 'Low' : 'None';
+          const rc = _riskClass(overallRisk);
 
           return `
             <div class="intake-card">
@@ -482,48 +689,45 @@
                   <strong>#${intake.id} ${fmt(intake.patient_name)}</strong>
                   <div class="muted">Created: ${new Date(intake.created_at).toLocaleString()}</div>
                 </div>
-                <span class="status-badge">${fmt(intake.status).replace('_', ' ')}</span>
+                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                  <span class="risk-badge ${rc}">Risk: ${overallRisk}</span>
+                  <span class="status-badge">${fmt(intake.status).replace('_', ' ')}</span>
+                </div>
               </div>
 
               <div class="section">
                 <div><strong>Patient:</strong> Age ${fmt(intake.patient_age)} • Allergies: ${fmt(intake.patient_allergies)}</div>
-                <div><strong>Meds:</strong> ${fmt(intake.medications)}</div>
-                <div><strong>Current:</strong> ${fmt(intake.current_medications)}</div>
-                <div><strong>Generation mode:</strong> <span class="pill">${generationMode}</span></div>
+                <div><strong>New meds:</strong> ${fmt(intake.medications)}</div>
+                <div><strong>Current meds:</strong> ${fmt(intake.current_medications)}</div>
+                <div style="margin-top:4px;"><strong>Mode:</strong> <span class="pill">${generationMode}</span></div>
               </div>
 
               <div class="section">
-                <strong>Interaction Results</strong>
+                <strong>Drug Interaction Results</strong>
                 ${renderInteractionSection(interactions)}
               </div>
+
+              ${allergyWarnings.length ? `
+              <div class="section">
+                <strong style="color:var(--danger);">⚠ Allergy Warnings</strong>
+                <div class="warn-box allergy" style="margin-top:6px;">
+                  ${allergyWarnings.map(w => `<div style="margin-bottom:3px;">${w}</div>`).join('')}
+                </div>
+              </div>` : ''}
+
+              ${lifestyleWarnings.length ? `
+              <div class="section">
+                <strong style="color:var(--warning);">⚠ Lifestyle Cautions</strong>
+                <div class="warn-box lifestyle" style="margin-top:6px;">
+                  ${lifestyleWarnings.map(w => `<div style="margin-bottom:3px;">${w}</div>`).join('')}
+                </div>
+              </div>` : ''}
 
               <div class="section">
                 <strong>Counseling Points</strong>
                 ${counselingPoints.length
                   ? `<ul class="mini-list">${counselingPoints.map(p => `<li>${p}</li>`).join('')}</ul>`
                   : `<div class="muted">No structured counseling points extracted.</div>`}
-              </div>
-
-              <div class="section">
-                <strong>Monitoring</strong>
-                ${(() => {
-                  const monitoring = interactions.map(i => i.monitoring).filter(Boolean);
-                  return monitoring.length
-                    ? `<ul class="mini-list">${monitoring.map(m => `<li>${m}</li>`).join('')}</ul>`
-                    : '<div class="muted">No monitoring details captured.</div>';
-                })()}
-              </div>
-
-              <div class="section">
-                <strong>Red Flags</strong>
-                ${redFlags.length
-                  ? `<div class="alert">${redFlags.map(r => `<div>⚠ ${r}</div>`).join('')}</div>`
-                  : '<div class="muted">No high-severity red flags.</div>'}
-              </div>
-
-              <div class="section">
-                <strong>Evidence</strong>
-                ${renderEvidenceSection(interactions)}
               </div>
 
               <div class="actions">
@@ -591,32 +795,80 @@
     document.getElementById('intake-form').addEventListener('submit', async (e) => {
       e.preventDefault();
 
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Creating…';
+
       const notesBase = document.getElementById('notes').value || '';
-      const payload = {
+      const smoking = document.getElementById('smoking').value || '';
+      const alcoholUse = document.getElementById('alcohol-use').value || '';
+      const renalStatus = document.getElementById('renal-status').value || '';
+      const hepaticStatus = document.getElementById('hepatic-status').value || '';
+      const pregnancy = document.getElementById('pregnancy').value || '';
+
+      const createPayload = {
         patient_name: document.getElementById('patient-name').value,
         patient_age: document.getElementById('patient-age').value ? parseInt(document.getElementById('patient-age').value) : null,
         patient_allergies: document.getElementById('patient-allergies').value || null,
         medications: document.getElementById('medications').value,
         current_medications: document.getElementById('current-medications').value || null,
-        notes: `${notesBase}${buildPatientContextString()}`.trim() || null
+        notes: `${notesBase}${buildPatientContextString()}`.trim() || null,
       };
 
+      const evalPayload = {
+        ...createPayload,
+        smoking: smoking || null,
+        alcohol_use: alcoholUse || null,
+        renal_status: renalStatus || null,
+        hepatic_status: hepaticStatus || null,
+        pregnancy: pregnancy || null,
+      };
+
+      const panel = document.getElementById('eval-panel');
+      const loading = document.getElementById('eval-loading');
+      const content = document.getElementById('eval-content');
+      panel.style.display = '';
+      loading.style.display = '';
+      content.innerHTML = '';
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/intakes`, {
+        const createRes = await fetchWithTimeout(`${API_BASE}/intakes`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        if (!res.ok) {
-          const err = await res.json();
+          body: JSON.stringify(createPayload),
+        }, 45000);
+
+        if (!createRes.ok) {
+          const err = await createRes.json();
           throw new Error(err.detail || 'Create failed');
+        }
+
+        submitBtn.textContent = 'Analyzing…';
+
+        const evalRes = await fetchWithTimeout(`${API_BASE}/intakes/evaluate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(evalPayload),
+        }, 15000);
+
+        loading.style.display = 'none';
+        if (evalRes.ok) {
+          content.innerHTML = renderEvaluateResult(await evalRes.json());
+        } else {
+          content.innerHTML = '<div class="muted">Analysis unavailable — see intake card below for interaction details.</div>';
         }
 
         document.getElementById('intake-form').reset();
         loadIntakes();
         loadStatistics();
       } catch (err) {
+        loading.style.display = 'none';
+        content.innerHTML = `<div class="muted">Error: ${err.message}</div>`;
         alert(err.message);
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Create Intake';
       }
     });
 
