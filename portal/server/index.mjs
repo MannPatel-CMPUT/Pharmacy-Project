@@ -20,7 +20,28 @@ const pharmacyHtmlPath = process.env.PHARMACY_HTML_PATH
 
 const requestedPort = Number(process.env.PORT || 3000);
 const isProd = process.env.NODE_ENV === "production";
-const JWT_SECRET = process.env.JWT_SECRET || "dev-only-change-in-production";
+const DEV_JWT_DEFAULTS = new Set([
+  "dev-only-change-in-production",
+  "dev-jwt-change-me",
+]);
+const jwtSecretEnv = process.env.JWT_SECRET;
+let JWT_SECRET;
+if (isProd) {
+  if (!jwtSecretEnv || DEV_JWT_DEFAULTS.has(jwtSecretEnv)) {
+    console.error(
+      "JWT_SECRET must be set to a strong non-default value when NODE_ENV=production.",
+    );
+    process.exit(1);
+  }
+  JWT_SECRET = jwtSecretEnv;
+} else {
+  JWT_SECRET = jwtSecretEnv || "dev-only-change-in-production";
+  if (!jwtSecretEnv) {
+    console.warn(
+      "JWT_SECRET is unset; using a dev-only fallback. Set JWT_SECRET in production.",
+    );
+  }
+}
 const COOKIE_NAME = "pharma_auth";
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
 

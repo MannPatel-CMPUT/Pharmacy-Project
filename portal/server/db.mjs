@@ -6,7 +6,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const dataDir = path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
 
-const usersFile = path.join(dataDir, "users.json");
+const usersFile = process.env.PORTAL_USERS_PATH
+  ? path.resolve(process.env.PORTAL_USERS_PATH)
+  : path.join(dataDir, "users.json");
 
 /** @typedef {{ id: number, username: string, email: string, phone: string, password_hash: string, created_at: string }} UserRow */
 
@@ -24,6 +26,7 @@ function load() {
 }
 
 function save(data) {
+  fs.mkdirSync(path.dirname(usersFile), { recursive: true });
   fs.writeFileSync(usersFile, JSON.stringify(data, null, 2), "utf8");
 }
 

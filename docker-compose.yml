@@ -1,31 +1,12 @@
-# Same host: Ollama + Pharmacy API on one Docker network.
-# API talks to Ollama at http://ollama:11434 (service name).
+# Pharmacy API on a single Docker network with persistent SQLite + portal user store.
 #
-# First-time Ollama model (after compose up):
-#   docker compose exec ollama ollama pull llama3
+# First run:
+#   JWT_SECRET=<your-secret> docker compose up --build
 #
-# Optional: load your CSV once (large) — mount file and set env on `api` service.
-#
-# RAM: Ollama + llama3 needs several GB; use a smaller model on low-memory hosts:
-#   docker compose exec ollama ollama pull llama3.2:1b
+# Optional: load your CSV once by mounting it and setting DRUG_INTERACTIONS_CSV
+# (see commented-out lines on the api service).
 
 services:
-  ollama:
-    image: ollama/ollama:latest
-    volumes:
-      - ollama_data:/root/.ollama
-    ports:
-      - "11434:11434"
-    restart: unless-stopped
-    # Uncomment on Linux + NVIDIA for faster inference (install nvidia-container-toolkit):
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
-
   api:
     build: .
     ports:
@@ -33,11 +14,8 @@ services:
     environment:
       DATABASE_URL: sqlite:////data/pharmacy.db
       FRONTEND_URL: http://localhost:8000
-      JWT_SECRET: ${JWT_SECRET:-dev-jwt-change-me}
-      # In-container DNS name for the Ollama service
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: llama3
-      OLLAMA_TIMEOUT_SECONDS: "120"
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the environment or a .env file}
+      PORTAL_USERS_PATH: /data/portal_users.json
     volumes:
       - pharmacy_data:/data
       # Optional: put db_drug_interactions.csv on host and uncomment:
@@ -45,10 +23,7 @@ services:
     # Optional CSV ingest on first boot (uncomment and set path inside container):
     # environment:
     #   DRUG_INTERACTIONS_CSV: /import/db_drug_interactions.csv
-    depends_on:
-      - ollama
     restart: unless-stopped
 
 volumes:
-  ollama_data:
   pharmacy_data:

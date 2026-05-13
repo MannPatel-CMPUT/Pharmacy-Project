@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import secrets
 import threading
@@ -14,7 +15,21 @@ import bcrypt
 import jwt
 from fastapi import Request
 
-JWT_SECRET = os.getenv("JWT_SECRET", "dev-only-change-in-production")
+_logger = logging.getLogger(__name__)
+_ENV = os.getenv("ENV", "").lower()
+_IS_PRODUCTION = _ENV == "production"
+_DEV_JWT_DEFAULTS = frozenset({"dev-only-change-in-production", "dev-jwt-change-me"})
+_raw_jwt = os.getenv("JWT_SECRET")
+if _IS_PRODUCTION:
+    if not _raw_jwt or _raw_jwt in _DEV_JWT_DEFAULTS:
+        raise RuntimeError("JWT_SECRET must be set in production")
+    JWT_SECRET = _raw_jwt
+else:
+    if _raw_jwt:
+        JWT_SECRET = _raw_jwt
+    else:
+        JWT_SECRET = "dev-only-change-in-production"
+        _logger.warning("JWT_SECRET unset; using dev default (not for production).")
 JWT_ALG = "HS256"
 COOKIE_NAME = "pharma_auth"
 COOKIE_MAX_AGE = 7 * 24 * 60 * 60
@@ -23,12 +38,12 @@ _lock = threading.Lock()
 
 _REPO = Path(__file__).resolve().parent.parent
 _DATA = _REPO / "data"
-_USERS_FILE = _DATA / "portal_users.json"
+_portal_users_env = os.getenv("PORTAL_USERS_PATH")
+if _portal_users_env:
+    _USERS_FILE = Path(_portal_users_env).expanduser().resolve()
+else:
+    _USERS_FILE = _DATA / "portal_users.json"
 _RESETS_FILE = _DATA / "password_resets.json"
-
-
-def _ensure_data_dir() -> None:
-    _DATA.mkdir(parents=True, exist_ok=True)
 
 
 def _read_json(path: Path, default: Any) -> Any:
@@ -41,7 +56,7 @@ def _read_json(path: Path, default: Any) -> Any:
 
 
 def _write_json(path: Path, data: Any) -> None:
-    _ensure_data_dir()
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
