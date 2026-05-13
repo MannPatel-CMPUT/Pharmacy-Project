@@ -1,6 +1,6 @@
 # 💊 Pharmacy Workflow Automation System
 
-A FastAPI + SQLite workflow system for pharmacy intake processing with deterministic drug interaction detection, optional Ollama-based counseling formatting, and knowledge ingestion pipelines.
+A FastAPI + SQLite workflow system for pharmacy intake processing with deterministic drug interaction detection (from your `db_drug_interactions.csv`), template-based counseling text, and optional manual dataset ingestion for tests.
 
 > **Disclaimer:** Educational prototype only. Not for diagnosis or prescribing.
 
@@ -10,17 +10,12 @@ A FastAPI + SQLite workflow system for pharmacy intake processing with determini
 
 - 7-stage deterministic workflow: `new → triage → waiting_info → ready_to_fill → filled → dispensed → completed`
 - Deterministic interaction engine (no LLM detection/severity assignment)
-- Rule/data ingestion from:
-  - seed JSON (`fastapi/data/drug_interactions.json`) on startup
-  - openFDA sync endpoint (sample labels from the API)
-  - per-intake openFDA label search (see `OPENFDA_ENRICH_ON_INTAKE` in `.env.example`)
-- Counseling generation pipeline:
-  - tries Ollama for structured counseling output
-  - falls back to template-based deterministic counseling if Ollama fails
+- Drug interaction data loaded at server startup from **`DRUG_INTERACTIONS_CSV`** (or `fastapi/data/db_drug_interactions.csv`), plus a merge from **`fastapi/data/drug_interactions.json`** for common pairs the bulk CSV may omit (e.g. warfarin + aspirin).
+- Counseling generation: deterministic template output (no LLM)
 - Frontend dashboard (vanilla HTML/CSS/JS):
   - intake creation
   - interaction/result visualization
-  - openFDA sync
+  - workflow stage labels and optional browser pickup alerts
 
 ---
 
@@ -42,21 +37,27 @@ cp .env.example .env
 
 Default `.env` values work locally with SQLite.
 
-### 3) Start backend
+### 3) Build Pharma Checker shell (splash, login, sign up)
+
+```bash
+cd portal
+npm install
+npm run build
+cd ..
+```
+
+### 4) Start backend (serves API + portal + `/workspace` dashboard on port 8000)
 
 ```bash
 cd fastapi
 uvicorn main:app --reload --port 8000
 ```
 
-### 4) Open frontend
+Open **http://localhost:8000** — sign in or sign up, then you are sent to **`/workspace`** for the pharmacy dashboard.
 
-Serve `frontend/index.html` over HTTP (or use app root if backend serves static):
+### 5) Optional: legacy second origin
 
-```bash
-cd frontend
-python -m http.server 8080
-```
+If you still serve `frontend/` from another port (e.g. 8080), keep that origin in **`FRONTEND_URL`** in `.env`.
 
 ---
 
@@ -67,72 +68,12 @@ See `.env.example`.
 Key values:
 
 - `DATABASE_URL` (default: `sqlite:///./pharmacy.db`)
-- `FRONTEND_URL` (default: `http://localhost:8080`)
-- `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
-- `OLLAMA_MODEL` (default: `llama3`)
-- `OLLAMA_TIMEOUT_SECONDS` (optional, default `30`) — HTTP timeout for Ollama `/api/generate`
-- `OPENFDA_API_KEY` (optional) — [openFDA API key](https://open.fda.gov/apis/authentication/) to reduce rate-limit failures
-- `OPENFDA_TIMEOUT_SECONDS` (optional, default `30`) — HTTP timeout for openFDA label fetch
-- `OPENFDA_ALLOW_MEDIUM` (optional, default `true`) — also persist **medium-confidence** co-mention pairs from SPL text as `DrugInteraction` rows with `source=openfda_medium`
+- `FRONTEND_URL` — comma-separated CORS origins; default in code includes `http://localhost:8000` and `http://localhost:8080`
+- `JWT_SECRET` — signing key for Pharma Checker auth cookies (set in production)
+- `DRUG_INTERACTIONS_CSV` — absolute path to `db_drug_interactions.csv` (Drug 1, Drug 2, Interaction Description). Loaded once on startup if the DB has no rows from that source yet.
+- `DDI_CSV_COMMIT_EVERY` (optional) — batch size during CSV ingest (default `2000`).
 
-**Render / cloud:** `OLLAMA_BASE_URL=http://localhost:11434` points at the **container**, not your laptop. Ollama will be unreachable unless you run Ollama on a reachable host (VPS, tunnel) and set `OLLAMA_BASE_URL` to that URL. Counseling then falls back to the template engine (see `counseling_source` on `GET /intakes/{id}/check-interactions`).
-
----
-
-## openFDA Usage
-
-### Trigger sync
-
-```bash
-curl -X POST http://localhost:8000/knowledge/openfda-sync
-```
-
-Example response (counts only; failures include `error` and HTTP details when the fetch fails):
-
-```json
-{
-  "total_fetched": 25,
-  "parsed": 16,
-  "inserted": 9,
-  "skipped": 40,
-  "failed": 0,
-  "skip_reason_counts": {
-    "low_confidence": 30,
-    "existing_pair": 10
-  },
-  "intakes_updated": 3
-}
-```
-
-Successful `openfda-sync` responses include **`intakes_updated`**: the server re-runs interaction detection for **every intake** so list cards pick up new `DrugInteraction` rows without manual **Re-check**.
-
-When `inserted` is `0` but labels were fetched, the API may include a `hint` (e.g. duplicates, pattern misses, or `OPENFDA_ALLOW_MEDIUM=false` skipping co-mentions).
-
----
-
-## Ollama Setup
-
-1. Install Ollama locally: https://ollama.com
-2. Pull model (example):
-
-```bash
-ollama pull llama3
-```
-
-3. Ensure `.env` values:
-
-```env
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3
-```
-
-4. Check app-visible status:
-
-```bash
-curl http://localhost:8000/config/status
-```
-
-If Ollama is down/unreachable, counseling automatically falls back to template mode.
+`GET /config/status` reports `counseling_engine: template` and `llm_enabled: false`.
 
 ---
 
@@ -160,7 +101,7 @@ curl -X POST http://localhost:8000/intakes \
 ### Re-check interactions
 
 ```bash
-curl http://localhost:8000/intakes/1/check-interactions
+curl -X POST http://localhost:8000/intakes/1/check-interactions
 ```
 
 ---
@@ -178,16 +119,16 @@ pytest -q
 ### Current MVP strengths
 
 - Deterministic interaction detection/prioritization and workflow transitions
-- Basic ingestion from openFDA (sync + per-intake enrichment)
-- Template fallback when Ollama fails
+- Bulk interaction pairs from `DRUG_INTERACTIONS_CSV` at startup
+- Template-based counseling (deterministic)
 - Automated test coverage for major backend paths
 
 ### Not yet production-level
 
 - No auth/role-based access control
 - No migration framework (uses lightweight SQLite backfill only)
-- Limited interaction ontology and heuristic parsing for openFDA text
-- No background job queue for long-running openFDA syncs
+- Interaction text comes from your CSV; no clinical adjudication layer
+- No background job queue for long CSV loads (first startup can take time)
 - No observability stack (metrics/traces/alerts)
 - No hardened input sanitization/audit/PII compliance workflow
 - Limited frontend UX polish and accessibility checks
