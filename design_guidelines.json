@@ -1,0 +1,106 @@
+{
+  "brand": {
+    "name": "RxFlow",
+    "theme": "Dual-mode (Dark for Auth, Light for Workspace)",
+    "archetype": "Archetype 4 (Swiss & High-Contrast) - Authority, Clarity, Truth"
+  },
+  "typography": {
+    "headings": {
+      "family": "Outfit, sans-serif",
+      "style": "Clean, geometric, authoritative",
+      "weights": ["600", "700"]
+    },
+    "body": {
+      "family": "IBM Plex Sans, sans-serif",
+      "style": "High legibility, distinct character recognition (critical for pharmacy)",
+      "weights": ["400", "500"]
+    },
+    "mono": {
+      "family": "IBM Plex Mono, monospace",
+      "style": "Used for timestamps, IDs, and precise data",
+      "weights": ["400", "500"]
+    },
+    "scale": {
+      "h1": "4xl to 5xl (never larger), tracking-tight, leading-none",
+      "h2": "2xl to 3xl, tracking-tight, leading-snug",
+      "h3": "xl to 2xl, tracking-tight",
+      "body": "base (16px), leading-relaxed",
+      "small": "sm (14px), leading-normal",
+      "overline": "xs (12px), uppercase, tracking-[0.2em], font-bold"
+    }
+  },
+  "colors": {
+    "auth_dark": {
+      "background": "#0A0B0E",
+      "surface_glass": "rgba(15, 23, 42, 0.6)",
+      "border_glass": "rgba(255, 255, 255, 0.1)",
+      "text_primary": "#F8FAFC",
+      "text_secondary": "#94A3B8",
+      "accent": "#0ea5e9"
+    },
+    "workspace_light": {
+      "background_app": "#F8FAFC",
+      "background_card": "#FFFFFF",
+      "border": "#E2E8F0",
+      "text_primary": "#0F172A",
+      "text_secondary": "#475569",
+      "accent": "#0ea5e9"
+    },
+    "severity": {
+      "contraindicated": { "bg": "#FEF2F2", "text": "#991B1B", "border": "#FCA5A5", "icon": "octagon-alert" },
+      "major": { "bg": "#FFF7ED", "text": "#9A3412", "border": "#FDBA74", "icon": "triangle-alert" },
+      "moderate": { "bg": "#FFFBEB", "text": "#B45309", "border": "#FCD34D", "icon": "alert-circle" },
+      "minor": { "bg": "#F0F9FF", "text": "#075985", "border": "#7DD3FC", "icon": "info" },
+      "unknown": { "bg": "#F1F5F9", "text": "#334155", "border": "#CBD5E1", "icon": "help-circle" }
+    }
+  },
+  "spacing_and_layout": {
+    "auth": "Centered glassmorphism container. Max-width 400px. High internal padding (3rem). Negative space isolates the login.",
+    "workspace": "Control Room Grid (Dense). 250px Sidebar + Main Content. Cards use p-6 for breathing room, but inner data lists use tight gap-2. Grid-cols-1 md:grid-cols-4 for stats.",
+    "border_radius": "Rounded-md (6px) or rounded-lg (8px) maximum. Clinical UI shouldn't be overly bubbly."
+  },
+  "iconography": {
+    "library": "Lucide",
+    "rules": "DE-EMOJI completely. Use clean line icons. 16px for inline, 20px for controls.",
+    "implementation": "Auth uses lucide-react. Workspace uses CDN script <script src=\"https://unpkg.com/lucide@latest\"></script> and lucide.createIcons()."
+  },
+  "components": {
+    "button": {
+      "primary": "Solid accent bg, white text, rounded-md, hover:brightness-110, transition-all duration-200. No heavy shadow.",
+      "secondary": "Transparent bg, 1px solid border, text-primary, hover:bg-slate-50 (light) or hover:bg-slate-800 (dark)."
+    },
+    "input": {
+      "style": "Sharp. 1px solid border, rounded-md, px-3 py-2. Focus:ring-2 focus:ring-accent focus:border-transparent."
+    },
+    "badge": {
+      "style": "Pill shape (rounded-full), px-2.5 py-0.5, text-xs, font-semibold, uppercase tracking-wide."
+    },
+    "workflow_stepper": {
+      "style": "Horizontal track. Completed: solid accent. Active: ringed. Pending: grayed out. Labels below nodes."
+    },
+    "card": {
+      "auth": "backdrop-blur-xl, shadow-2xl, inner border-white/10.",
+      "workspace": "Solid white, flat, 1px border-slate-200. Hover: slight shadow-sm."
+    },
+    "states": {
+      "skeleton": "Pulse animation on gray block elements (bg-slate-200).",
+      "empty": "Centered content, muted text, 24px Lucide icon, optional action button.",
+      "error": "Red border, pale red background, error icon, descriptive text."
+    }
+  },
+  "media": {
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1748404493914-c9443dac6234?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NjZ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBsYWJvcmF0b3J5JTIwYmx1ciUyMGRhcmslMjBiYWNrZ3JvdW5kfGVufDB8fHx8MTc3ODcxNTI0Nnww&ixlib=rb-4.1.0&q=85",
+        "category": "background",
+        "description": "Modern laboratory blur dark background. Use as the full-screen background for the Auth portal with a heavy dark overlay (e.g., bg-black/70) so the glass card pops."
+      }
+    ]
+  },
+  "page_specific_instructions": {
+    "auth_portal": "Splash screen with fading logo. Login/Signup/Reset mapped to glass cards. Use pure CSS or CSS modules mapping to the dark color tokens. React + Vite context.",
+    "workspace_dashboard": "Vanilla HTML/CSS/JS in index.html. Header (sticky, search, user). Stats strip (5 metrics). Intake list (severity sorted, chips). Intake form. Patient search. Modal for counseling. Toast for pickup.",
+    "testing_requirements": "Add data-testid to EVERY button, input, badge, and interactive element. Format: kebab-case, role-based (e.g., data-testid='login-submit-button')."
+  },
+  "technical_constraints": "Workspace MUST remain a single HTML file with inline/block CSS and JS. NO React, NO build step for workspace. Auth portal uses React + Vite + CSS (no Tailwind)."
+}

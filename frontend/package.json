@@ -1,0 +1,8 @@
+{
+  "name": "rxflow-frontend-launcher",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "start": "FASTAPI_URL=http://127.0.0.1:8001 JWT_SECRET=rxflow-dev-only-shared-secret PORTAL_USERS_PATH=/app/fastapi/data/portal_users.json node /app/portal/server/index.mjs"
+  }
+}

@@ -180,14 +180,25 @@ app.get("/workspace", requireAuthHtml, (req, res) => {
   res.sendFile(path.resolve(pharmacyHtmlPath));
 });
 
+function shouldProxy(pathname) {
+  return (
+    pathname === "/intakes" ||
+    pathname.startsWith("/intakes/") ||
+    pathname === "/health" ||
+    pathname === "/config" ||
+    pathname.startsWith("/config/")
+  );
+}
+
 const apiProxy = createProxyMiddleware({
   target: FASTAPI_URL,
   changeOrigin: true,
 });
 
-app.use("/intakes", apiProxy);
-app.use("/health", apiProxy);
-app.use("/config", apiProxy);
+app.use((req, res, next) => {
+  if (shouldProxy(req.path)) return apiProxy(req, res, next);
+  return next();
+});
 
 async function mountFrontend() {
   if (isProd) {
