@@ -51,7 +51,7 @@ def test_detect_interactions_returns_structured_pairwise_findings():
     assert row["source"] == "test"
 
 
-def test_detect_interactions_matches_class_based_pair_from_openfda_style_data():
+def test_detect_interactions_matches_class_based_pair_from_csv_style_data():
     db = _build_db_session()
 
     warfarin = Drug(generic_name="warfarin")
@@ -71,7 +71,7 @@ def test_detect_interactions_matches_class_based_pair_from_openfda_style_data():
                 severity="major",
                 description="Warfarin and NSAIDs increase bleeding risk.",
                 clinical_effect="Warfarin and NSAIDs increase bleeding risk.",
-                source="openfda",
+                source="db_drug_interactions_csv",
             ),
         ]
     )
@@ -79,5 +79,5 @@ def test_detect_interactions_matches_class_based_pair_from_openfda_style_data():
 
     findings = detect_interactions(db, "Warfarin", "Ibuprofen")
     assert len(findings) == 1
-    assert findings[0]["source"] == "openfda"
+    assert findings[0]["source"] == "db_drug_interactions_csv"
     assert findings[0]["normalized_pair"] == ["nsaids", "warfarin"]

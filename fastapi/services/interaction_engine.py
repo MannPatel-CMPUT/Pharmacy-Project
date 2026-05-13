@@ -6,30 +6,75 @@ import logging
 from itertools import combinations
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import Drug, DrugInteraction
+from services.knowledge_repository import ordered_pair
 from services.normalization_service import expanded_terms_for_matching, normalize_and_match
 
 logger = logging.getLogger(__name__)
+
 
 def _ordered_names(a: str, b: str) -> tuple[str, str]:
     return (a, b) if a <= b else (b, a)
 
 
-def _load_interaction_map(db: Session) -> dict[tuple[str, str], DrugInteraction]:
-    drugs = {d.id: d.generic_name for d in db.query(Drug).all()}
-    interactions = db.query(DrugInteraction).all()
+def _get_drug_by_canonical_name(db: Session, name: str) -> Optional[Drug]:
+    if not name:
+        return None
+    token = name.strip().lower()
+    row = db.query(Drug).filter(Drug.generic_name == token).first()
+    if row:
+        return row
+    return db.query(Drug).filter(func.lower(Drug.generic_name) == token).first()
 
-    interaction_map: dict[tuple[str, str], DrugInteraction] = {}
-    for row in interactions:
-        left = drugs.get(row.drug_a_id)
-        right = drugs.get(row.drug_b_id)
-        if not left or not right:
-            continue
-        key = _ordered_names(left, right)
-        interaction_map[key] = row
-    return interaction_map
+
+def _fetch_interaction_for_name_pair(
+    db: Session, name_a: str, name_b: str
+) -> Optional[DrugInteraction]:
+    """Resolve two canonical drug names to a single DrugInteraction row, if any."""
+    d1 = _get_drug_by_canonical_name(db, name_a)
+    d2 = _get_drug_by_canonical_name(db, name_b)
+    if not d1 or not d2 or d1.id == d2.id:
+        return None
+    a_id, b_id = ordered_pair(d1.id, d2.id)
+    return (
+        db.query(DrugInteraction)
+        .filter(
+            DrugInteraction.drug_a_id == a_id,
+            DrugInteraction.drug_b_id == b_id,
+        )
+        .first()
+    )
+
+
+def _lookup_interaction_for_medication_pair(
+    db: Session, med_a: str, med_b: str
+) -> tuple[Optional[DrugInteraction], tuple[str, str], str, list[tuple[str, str]]]:
+    """
+    Match using ordered names, then class/synonym expansion.
+    Returns (row, matched_pair, match_reason, searched_pairs).
+    """
+    left, right = _ordered_names(med_a, med_b)
+    pair = (left, right)
+    searched_pairs: list[tuple[str, str]] = [pair]
+
+    interaction = _fetch_interaction_for_name_pair(db, left, right)
+    if interaction:
+        return interaction, pair, "exact", searched_pairs
+
+    for left_option in expanded_terms_for_matching(left):
+        for right_option in expanded_terms_for_matching(right):
+            candidate = _ordered_names(left_option, right_option)
+            if candidate in searched_pairs:
+                continue
+            searched_pairs.append(candidate)
+            interaction = _fetch_interaction_for_name_pair(db, left_option, right_option)
+            if interaction:
+                return interaction, candidate, "class_expansion", searched_pairs
+
+    return None, pair, "none", searched_pairs
 
 
 def detect_interactions(
@@ -45,8 +90,6 @@ def detect_interactions(
         current_meds,
     )
 
-    interaction_map = _load_interaction_map(db)
-    logger.info("interaction db_candidates total=%s", len(interaction_map))
     seen_pairs: set[tuple[str, str]] = set()
     findings: list[dict] = []
 
@@ -62,27 +105,9 @@ def detect_interactions(
             continue
         seen_pairs.add(pair)
 
-        interaction = interaction_map.get(pair)
-        matched_pair = pair
-        match_reason = "exact"
-        searched_pairs = [pair]
-
-        if not interaction:
-            left_options = expanded_terms_for_matching(left)
-            right_options = expanded_terms_for_matching(right)
-            for left_option in left_options:
-                for right_option in right_options:
-                    candidate = _ordered_names(left_option, right_option)
-                    if candidate in searched_pairs:
-                        continue
-                    searched_pairs.append(candidate)
-                    interaction = interaction_map.get(candidate)
-                    if interaction:
-                        matched_pair = candidate
-                        match_reason = "class_expansion"
-                        break
-                if interaction:
-                    break
+        interaction, matched_pair, match_reason, searched_pairs = (
+            _lookup_interaction_for_medication_pair(db, med_a, med_b)
+        )
 
         logger.info(
             "interaction pair_eval input_pair=%s searched_pairs=%s matched_pair=%s match_reason=%s matched=%s",
@@ -107,6 +132,11 @@ def detect_interactions(
                 "source": interaction.source,
             }
         )
-        logger.info("interaction matched input_pair=%s stored_pair=%s source=%s", pair, matched_pair, interaction.source)
+        logger.info(
+            "interaction matched input_pair=%s stored_pair=%s source=%s",
+            pair,
+            matched_pair,
+            interaction.source,
+        )
 
     return findings

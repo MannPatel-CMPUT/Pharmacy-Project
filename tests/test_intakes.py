@@ -9,11 +9,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
-import services.counseling_service as counseling_mod
-import services.openfda_ingestion_service as ingestion
-import services.ollama_service as ollama
 from main import app
-from database import Base, get_db
+from database import Base, Drug, DrugAlias, DrugInteraction, get_db
 
 # StaticPool ensures all connections in-process share the same in-memory database.
 engine = create_engine(
@@ -209,81 +206,27 @@ def test_statistics_endpoint():
     assert data["total"] >= 1
 
 
-def test_openfda_sync_endpoint(monkeypatch):
-    class DummyResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {
-                "results": [
-                    {
-                        "openfda": {
-                            "generic_name": ["Warfarin"],
-                            "brand_name": ["Coumadin"],
-                            "set_id": ["abc-123"],
-                        },
-                        "drug_interactions": [
-                            "Warfarin and aspirin may cause serious bleeding. Monitor patient closely."
-                        ],
-                        "warnings": [
-                            "Warfarin with ibuprofen should be avoided in serious cases."
-                        ],
-                        "contraindications": [
-                            "Warfarin is contraindicated with rivaroxaban."
-                        ],
-                    }
-                ]
-            }
-
-    monkeypatch.setattr(ingestion.httpx, "get", lambda *args, **kwargs: DummyResponse())
-
-    response = client.post("/knowledge/openfda-sync")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["total_fetched"] == 1
-    assert data["parsed"] >= 1
-    assert data["inserted"] >= 1
-    assert data["failed"] == 0
-    assert "intakes_updated" in data
-
-
-def test_openfda_sync_populates_interactions_for_new_intake(monkeypatch):
-    class DummyResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {
-                "results": [
-                    {
-                        "openfda": {
-                            "generic_name": ["Warfarin"],
-                            "set_id": ["set-warfarin"],
-                        },
-                        "drug_interactions": [
-                            "Concurrent use of warfarin and NSAIDs increases bleeding risk."
-                        ],
-                    },
-                    {
-                        "openfda": {
-                            "generic_name": ["Clarithromycin"],
-                            "set_id": ["set-clarithromycin"],
-                        },
-                        "drug_interactions": [
-                            "Clarithromycin may increase simvastatin concentrations."
-                        ],
-                    },
-                ]
-            }
-
-    monkeypatch.setattr(ingestion.httpx, "get", lambda *args, **kwargs: DummyResponse())
-
-    sync_response = client.post("/knowledge/openfda-sync")
-    assert sync_response.status_code == 200
-    sync_body = sync_response.json()
-    assert sync_body["inserted"] >= 4
-    assert "intakes_updated" in sync_body
+def test_create_intake_uses_local_drug_interaction_rows():
+    """Same data model as db_drug_interactions.csv — pairs stored in SQLite."""
+    db = TestingSessionLocal()
+    w = Drug(generic_name="warfarin")
+    ib = Drug(generic_name="ibuprofen")
+    db.add_all([w, ib])
+    db.flush()
+    db.add_all([
+        DrugAlias(drug_id=w.id, alias="warfarin"),
+        DrugAlias(drug_id=ib.id, alias="ibuprofen"),
+        DrugInteraction(
+            drug_a_id=min(w.id, ib.id),
+            drug_b_id=max(w.id, ib.id),
+            severity="major",
+            description="NSAIDs may increase bleeding with warfarin.",
+            clinical_effect="Bleeding risk",
+            source="db_drug_interactions_csv",
+        ),
+    ])
+    db.commit()
+    db.close()
 
     intake_response = client.post(
         "/intakes",
@@ -300,52 +243,34 @@ def test_openfda_sync_populates_interactions_for_new_intake(monkeypatch):
     data = intake_response.json()
     assert data["drug_interactions"] is not None
     interactions = json.loads(data["drug_interactions"])
-    assert len(interactions) == 1
-    assert interactions[0]["source"] == "openfda"
+    assert len(interactions) >= 1
+    assert interactions[0]["source"] == "db_drug_interactions_csv"
     assert interactions[0]["normalized_pair"] == ["ibuprofen", "warfarin"]
 
 
-def test_config_status_endpoint(monkeypatch):
-    class DummyTagsResponse:
-        def raise_for_status(self):
-            return None
-
-        def json(self):
-            return {"models": [{"name": "llama3:latest"}]}
-
-    monkeypatch.setattr(ollama.httpx, "get", lambda *args, **kwargs: DummyTagsResponse())
+def test_config_status_endpoint():
     response = client.get("/config/status")
     assert response.status_code == 200
     body = response.json()
-    assert body["ollama_reachable"] is True
-    assert "configured_model" in body
+    assert body["llm_enabled"] is False
+    assert body["counseling_engine"] == "template"
 
 
-def test_create_intake_falls_back_when_ollama_unavailable(monkeypatch):
-    def raise_conn_error(*args, **kwargs):
-        raise RuntimeError("ollama down")
-
-    monkeypatch.setattr(ollama.httpx, "post", raise_conn_error)
-
+def test_create_intake_includes_template_counseling():
     response = client.post("/intakes", json=SAMPLE_INTAKE)
     assert response.status_code == 201
     data = response.json()
     assert "Educational prototype only. Not for diagnosis or prescribing." in data["counseling_points"]
 
 
-def test_check_interactions_returns_counseling_source(monkeypatch):
-    def _boom(*args, **kwargs):
-        raise RuntimeError("ollama unavailable")
-
-    monkeypatch.setattr(counseling_mod, "generate_personalized_counseling", _boom)
-
+def test_check_interactions_returns_counseling_source():
     create = client.post("/intakes", json=SAMPLE_INTAKE)
     assert create.status_code == 201
     intake_id = create.json()["id"]
 
-    res = client.get(f"/intakes/{intake_id}/check-interactions")
+    res = client.post(f"/intakes/{intake_id}/check-interactions")
     assert res.status_code == 200
     body = res.json()
-    assert body["counseling_source"] == "template_fallback"
+    assert body["counseling_source"] == "template"
     assert "counseling_points" in body
     assert "interactions" in body

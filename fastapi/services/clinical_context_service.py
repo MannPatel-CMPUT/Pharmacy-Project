@@ -70,6 +70,18 @@ _LIFESTYLE_RULES: list[dict] = [
     },
 ]
 
+# Medication keywords associated with teratogenicity / sex-specific risk
+_TERATOGEN_KEYWORDS: list[str] = [
+    "methotrexate", "isotretinoin", "leflunomide", "thalidomide",
+    "azathioprine", "valproate", "valproic", "lithium", "warfarin",
+    "ribavirin", "mycophenolate", "bosentan", "finasteride", "dutasteride",
+]
+
+_MALE_SPECIFIC_KEYWORDS: list[str] = [
+    "sildenafil", "tadalafil", "vardenafil", "finasteride", "dutasteride",
+    "testosterone", "tamsulosin", "alfuzosin",
+]
+
 
 def _tokenize(text: Optional[str]) -> list[str]:
     if not text:
@@ -135,12 +147,17 @@ def build_allergy_warnings(
     return warnings
 
 
+_FEMALE_INDICATORS: frozenset[str] = frozenset({"female", "f", "woman", "girl"})
+_MALE_INDICATORS: frozenset[str] = frozenset({"male", "m", "man", "boy"})
+
+
 def build_lifestyle_warnings(
     smoking: Optional[str] = None,
     alcohol_use: Optional[str] = None,
     renal_status: Optional[str] = None,
     hepatic_status: Optional[str] = None,
     pregnancy: Optional[str] = None,
+    patient_gender: Optional[str] = None,
     medications: Optional[str] = None,
     current_medications: Optional[str] = None,
 ) -> list[str]:
@@ -177,5 +194,51 @@ def build_lifestyle_warnings(
         if warning_text not in seen:
             seen.add(warning_text)
             warnings.append(warning_text)
+
+    # Gender-specific warnings
+    gender = (patient_gender or "").strip().lower()
+    if gender in _FEMALE_INDICATORS:
+        teratogen_matches = [k for k in _TERATOGEN_KEYWORDS if any(k in m or m in k for m in med_tokens)]
+        if teratogen_matches:
+            w = (
+                f"⚠ Gender-specific alert (female patient): "
+                f"{', '.join(t.title() for t in teratogen_matches)} "
+                f"{'is' if len(teratogen_matches) == 1 else 'are'} associated with teratogenicity or "
+                f"sex-specific risks. Confirm contraception status and safety with the prescriber."
+            )
+            if w not in seen:
+                seen.add(w)
+                warnings.append(w)
+
+        if context.get("pregnancy") == "yes":
+            w = (
+                "⚠ Pregnancy confirmed for a female patient — ensure all medications have been assessed "
+                "for pregnancy safety and the prescriber is aware."
+            )
+            if w not in seen:
+                seen.add(w)
+                warnings.append(w)
+
+    if gender in _MALE_INDICATORS:
+        male_matches = [k for k in _MALE_SPECIFIC_KEYWORDS if any(k in m or m in k for m in med_tokens)]
+        if male_matches:
+            w = (
+                f"ℹ Gender-specific note (male patient): "
+                f"{', '.join(k.title() for k in male_matches)} "
+                f"{'is' if len(male_matches) == 1 else 'are'} indicated for male patients. "
+                f"Verify indication and dosing."
+            )
+            if w not in seen:
+                seen.add(w)
+                warnings.append(w)
+
+        if context.get("pregnancy") == "yes":
+            w = (
+                "⚠ Pregnancy recorded for a patient identified as male — please verify the gender or "
+                "pregnancy field before dispensing."
+            )
+            if w not in seen:
+                seen.add(w)
+                warnings.append(w)
 
     return warnings

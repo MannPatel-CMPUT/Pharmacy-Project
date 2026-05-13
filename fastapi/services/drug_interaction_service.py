@@ -11,7 +11,6 @@ from services.interaction_engine import detect_interactions
 from services.normalization_service import split_medications
 from services.prioritization_service import prioritize_interactions
 from services.counseling_service import generate_counseling
-from services.openfda_intake_enrichment import enrich_db_from_openfda_for_intake_meds
 
 logger = logging.getLogger(__name__)
 
@@ -22,21 +21,17 @@ def check_drug_interactions(
     current_medications: Optional[str] = None,
     *,
     patient_age: Optional[int] = None,
+    patient_gender: Optional[str] = None,
     renal_status: Optional[str] = None,
     hepatic_status: Optional[str] = None,
-    enrich: bool = True,
 ) -> list[dict]:
-    if enrich:
-        try:
-            enrich_db_from_openfda_for_intake_meds(db, new_medications, current_medications)
-        except Exception:
-            logger.exception("openfda intake enrich failed; continuing with local DB only")
-
+    """Uses the local drug_interactions table (loaded from your CSV at startup when configured)."""
     findings = detect_interactions(db, new_medications, current_medications)
     total_meds = len(split_medications(new_medications)) + len(split_medications(current_medications))
     return prioritize_interactions(
         findings,
         age=patient_age,
+        patient_gender=patient_gender,
         renal_status=renal_status,
         hepatic_status=hepatic_status,
         medication_count=total_meds,

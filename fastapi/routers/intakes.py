@@ -16,7 +16,8 @@ router = APIRouter(prefix="/intakes", tags=["intakes"])
 @router.post("", response_model=IntakeOut, status_code=201)
 def create_intake(payload: IntakeCreate, db: Session = Depends(get_db)):
     try:
-        return intake_service.create_intake(db, payload)
+        intake = intake_service.create_intake(db, payload)
+        return intake_service.enrich_intake_out(intake)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating intake: {str(e)}")
 
@@ -25,7 +26,7 @@ def create_intake(payload: IntakeCreate, db: Session = Depends(get_db)):
 def evaluate_intake(payload: EvaluateIntakeRequest, db: Session = Depends(get_db)):
     """
     Evaluate drug interactions, allergy warnings, and lifestyle cautions without saving an intake.
-    Uses the local knowledge base (seed data + previously enriched openFDA rows).
+    Uses the local drug_interactions table (from ``DRUG_INTERACTIONS_CSV`` at server start).
     """
     result = intake_service.evaluate_intake_interactions(db, payload)
     return result
@@ -40,7 +41,8 @@ def list_intakes(
     limit: int = Query(50, ge=1, le=200, description="Maximum number of records to return"),
     db: Session = Depends(get_db)
 ):
-    return intake_service.list_intakes(db, status=status, assigned_to=assigned_to, search=search, skip=skip, limit=limit)
+    rows = intake_service.list_intakes(db, status=status, assigned_to=assigned_to, search=search, skip=skip, limit=limit)
+    return [intake_service.enrich_intake_out(i) for i in rows]
 
 
 @router.get("/stats/summary")
@@ -48,12 +50,21 @@ def get_statistics(db: Session = Depends(get_db)):
     return intake_service.get_statistics(db)
 
 
+@router.post("/{intake_id}/check-interactions")
+def check_interactions(intake_id: int, db: Session = Depends(get_db)):
+    """Re-run interaction detection and refresh counseling (not cacheable as GET)."""
+    result = intake_service.check_interactions_for_intake(db, intake_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Intake not found")
+    return result
+
+
 @router.get("/{intake_id}", response_model=IntakeOut)
 def get_intake(intake_id: int, db: Session = Depends(get_db)):
     intake = intake_service.get_intake_by_id(db, intake_id)
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
-    return intake
+    return intake_service.enrich_intake_out(intake)
 
 
 @router.delete("/{intake_id}", status_code=204)
@@ -71,7 +82,7 @@ def change_status(intake_id: int, payload: StatusUpdate, db: Session = Depends(g
         raise HTTPException(status_code=400, detail=str(e))
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
-    return intake
+    return intake_service.enrich_intake_out(intake)
 
 
 @router.get("/{intake_id}/history", response_model=List[StatusHistoryEntry])
@@ -87,7 +98,7 @@ def assign_intake(intake_id: int, payload: AssignUser, db: Session = Depends(get
     intake = intake_service.assign_intake(db, intake_id, payload.user)
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
-    return intake
+    return intake_service.enrich_intake_out(intake)
 
 
 @router.post("/{intake_id}/counseling", response_model=IntakeOut)
@@ -95,7 +106,7 @@ def update_counseling_points(intake_id: int, payload: CounselingPointsUpdate, db
     intake = intake_service.update_counseling_points(db, intake_id, payload.counseling_points)
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
-    return intake
+    return intake_service.enrich_intake_out(intake)
 
 
 @router.post("/{intake_id}/pharmacist-notes", response_model=IntakeOut)
@@ -103,7 +114,7 @@ def update_pharmacist_notes(intake_id: int, payload: PharmacistNotesUpdate, db: 
     intake = intake_service.update_pharmacist_notes(db, intake_id, payload.pharmacist_notes)
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
-    return intake
+    return intake_service.enrich_intake_out(intake)
 
 
 @router.post("/{intake_id}/dispense", response_model=IntakeOut)
@@ -111,12 +122,4 @@ def dispense_medication(intake_id: int, payload: DispenseUpdate, db: Session = D
     intake = intake_service.dispense_medication(db, intake_id, payload.dispensed)
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
-    return intake
-
-
-@router.get("/{intake_id}/check-interactions")
-def check_interactions(intake_id: int, db: Session = Depends(get_db)):
-    result = intake_service.check_interactions_for_intake(db, intake_id)
-    if not result:
-        raise HTTPException(status_code=404, detail="Intake not found")
-    return result
+    return intake_service.enrich_intake_out(intake)

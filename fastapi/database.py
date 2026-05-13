@@ -1,10 +1,10 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime, timezone
-import os
 import json
+import os
+from pathlib import Path
 from sqlalchemy import text
-from sqlalchemy.exc import IntegrityError
 import logging
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pharmacy.db")
@@ -24,6 +24,7 @@ class Intake(Base):
     id = Column(Integer, primary_key=True, index=True)
     patient_name = Column(String, index=True)
     patient_age = Column(Integer, nullable=True)
+    patient_gender = Column(String, nullable=True)
     patient_allergies = Column(Text, nullable=True)
     medications = Column(Text)
     current_medications = Column(Text, nullable=True)
@@ -97,7 +98,7 @@ class InteractionDocument(Base):
     __tablename__ = "interaction_documents"
 
     id = Column(Integer, primary_key=True, index=True)
-    source = Column(String, nullable=False, default="openfda")
+    source = Column(String, nullable=False, default="dataset")
     source_id = Column(String, nullable=True, index=True)
     section = Column(String, nullable=False)
     raw_text = Column(Text, nullable=False)
@@ -128,35 +129,106 @@ def get_db():
         db.close()
 
 
-def _seed_drug_knowledge() -> None:
-    """Merge seed `drug_interactions.json` into the DB (idempotent). Runs even if drugs already exist."""
-    data_path = os.path.join(os.path.dirname(__file__), "data", "drug_interactions.json")
-    if not os.path.exists(data_path):
+def _resolve_ddii_csv_path() -> str | None:
+    """
+    Prefer ``DRUG_INTERACTIONS_CSV`` when set; otherwise use ``fastapi/data/db_drug_interactions.csv`` if present.
+    """
+    explicit = (os.getenv("DRUG_INTERACTIONS_CSV") or "").strip()
+    if explicit:
+        if os.path.isfile(explicit):
+            return explicit
+        logger.warning("DRUG_INTERACTIONS_CSV is set but file not found: %s", explicit)
+        return None
+    default_csv = Path(__file__).resolve().parent / "data" / "db_drug_interactions.csv"
+    if default_csv.is_file():
+        logger.info("DRUG_INTERACTIONS_CSV not set; loading %s", default_csv)
+        return str(default_csv)
+    logger.info(
+        "No interaction CSV: set DRUG_INTERACTIONS_CSV or copy db_drug_interactions.csv to %s",
+        default_csv,
+    )
+    return None
+
+
+def _load_ddii_csv_if_configured() -> None:
+    """
+    One-time load of db_drug_interactions.csv into drug_interactions.
+
+    Set ``DRUG_INTERACTIONS_CSV`` to the absolute path of your CSV, or place the file at
+    ``fastapi/data/db_drug_interactions.csv``. Skips if that source is already present.
+    """
+    path = _resolve_ddii_csv_path()
+    if not path:
         return
 
-    with open(data_path, "r", encoding="utf-8") as f:
-        seed_data = json.load(f)
-
-    # Lazy import avoids circular import (services.knowledge_ingestion_service imports database).
-    from services.knowledge_ingestion_service import ingest_seed_interactions_bundle
+    from services.ddi_csv_ingestion import SOURCE_TAG, ingest_ddii_csv_file
 
     with SessionLocal() as db:
-        try:
-            stats = ingest_seed_interactions_bundle(db, seed_data, interaction_source="seed_json")
-            if stats.get("fatal"):
-                logger.warning("seed skipped fatal=%s error=%s", stats.get("fatal"), stats.get("error"))
-                return
-            db.commit()
-        except IntegrityError:
-            # Parallel app startups can race on seed inserts; skip duplicates gracefully.
+        n = db.query(DrugInteraction).filter(DrugInteraction.source == SOURCE_TAG).count()
+        if n > 0:
+            logger.info("Drug interaction CSV already loaded (%s pairs), skipping ingest", n)
+            return
+
+    try:
+        with SessionLocal() as db:
+            stats = ingest_ddii_csv_file(db, path)
+        logger.info(
+            "Loaded drug interactions CSV: inserted=%s skipped=%s rows=%s",
+            stats.get("inserted"),
+            stats.get("skipped"),
+            stats.get("total_rows"),
+        )
+    except Exception:
+        logger.exception("Failed to ingest DRUG_INTERACTIONS_CSV")
+
+
+def _load_seed_interactions_json() -> None:
+    """
+    Merge ``fastapi/data/drug_interactions.json`` into ``drug_interactions``.
+
+    Runs on every startup; skips pairs already present (e.g. from the large CSV).
+    Fills gaps where the TDCommons/Kaggle export omits common pairs (e.g. warfarin + aspirin).
+    """
+    path = Path(__file__).resolve().parent / "data" / "drug_interactions.json"
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        logger.exception("Could not read seed interactions: %s", path)
+        return
+
+    from services.knowledge_ingestion_service import ingest_seed_interactions_bundle
+
+    db = SessionLocal()
+    try:
+        stats = ingest_seed_interactions_bundle(
+            db, payload, interaction_source="seed_json"
+        )
+        if stats.get("fatal"):
+            logger.error("Seed interactions ingest failed: %s", stats.get("error"))
             db.rollback()
-            logger.info("seed duplicate_conflicts_skipped=true")
+            return
+        db.commit()
+        if stats.get("inserted", 0) or stats.get("skipped", 0):
+            logger.info(
+                "Seed interactions JSON: inserted=%s skipped=%s rows=%s",
+                stats.get("inserted"),
+                stats.get("skipped"),
+                stats.get("total_rows"),
+            )
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to ingest seed drug_interactions.json")
+    finally:
+        db.close()
 
 
 def init_db():
     Base.metadata.create_all(bind=engine)
     _run_lightweight_migrations()
-    _seed_drug_knowledge()
+    _load_ddii_csv_if_configured()
+    _load_seed_interactions_json()
 
 
 def _run_lightweight_migrations() -> None:
@@ -165,6 +237,13 @@ def _run_lightweight_migrations() -> None:
         with engine.begin() as conn:
             if not str(engine.url).startswith("sqlite"):
                 return
+
+            intakes_cols = {
+                row[1]
+                for row in conn.execute(text("PRAGMA table_info('intakes')")).fetchall()
+            }
+            if "patient_gender" not in intakes_cols:
+                conn.execute(text("ALTER TABLE intakes ADD COLUMN patient_gender TEXT"))
 
             existing = {
                 row[1]

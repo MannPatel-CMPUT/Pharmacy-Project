@@ -1,10 +1,12 @@
 from fastapi import APIRouter
 
-from services.ollama_service import check_ollama_status
-
 router = APIRouter(prefix="/config", tags=["config"])
 
 
 @router.get("/status")
 def config_status():
-    return check_ollama_status()
+    """Minimal config surface; LLM counseling is not used."""
+    return {
+        "counseling_engine": "template",
+        "llm_enabled": False,
+    }

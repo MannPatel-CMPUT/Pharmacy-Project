@@ -1,4 +1,4 @@
-"""Manual knowledge dataset ingestion (CSV/JSON) and openFDA label JSON bundles."""
+"""Manual knowledge dataset ingestion (CSV/JSON): seed bundles and six-column interaction rows."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from database import DrugAlias, DrugInteraction
+from services.ddi_csv_ingestion import ingest_ddii_csv_stream, is_ddii_csv_headers
 from services.knowledge_repository import (
     ensure_alias,
     get_or_create_drug,
     interaction_exists,
     ordered_pair,
 )
-from services.openfda_ingestion_service import ingest_openfda_label_results, is_openfda_label_bundle
 
 ALLOWED_SEVERITIES = {"contraindicated", "major", "moderate", "minor"}
 
@@ -115,6 +115,7 @@ def ingest_seed_interactions_bundle(
             return stats
 
     pair_count = 0
+    seen_pair_ids: set[tuple[int, int]] = set()
     for left, rights in interactions.items():
         if not isinstance(rights, dict):
             continue
@@ -137,6 +138,9 @@ def ingest_seed_interactions_bundle(
                 ensure_alias(db, drug_b, right_norm, known_aliases)
 
                 pair_ids = ordered_pair(drug_a.id, drug_b.id)
+                if pair_ids in seen_pair_ids:
+                    stats["skipped"] += 1
+                    continue
                 if interaction_exists(db, pair_ids[0], pair_ids[1]):
                     stats["skipped"] += 1
                     continue
@@ -155,6 +159,7 @@ def ingest_seed_interactions_bundle(
                         source=interaction_source,
                     )
                 )
+                seen_pair_ids.add(pair_ids)
                 stats["inserted"] += 1
             except Exception as exc:
                 db.rollback()
@@ -222,7 +227,7 @@ def ingest_knowledge_dataset(filename: str, content: bytes, db: Session) -> dict
         }
 
     try:
-        text = content.decode("utf-8")
+        text = content.decode("utf-8-sig")
     except Exception:
         return {
             "total_rows": 0,
@@ -245,11 +250,6 @@ def ingest_knowledge_dataset(filename: str, content: bytes, db: Session) -> dict
                 "fatal": True,
                 "error": f"Invalid JSON: {exc}",
             }
-
-        if is_openfda_label_bundle(payload):
-            stats = ingest_openfda_label_results(db, payload["results"])
-            stats["format"] = "openfda_label_json"
-            return stats
 
         if is_seed_interactions_bundle(payload):
             stats = ingest_seed_interactions_bundle(db, payload, interaction_source="upload")
@@ -278,13 +278,16 @@ def ingest_knowledge_dataset(filename: str, content: bytes, db: Session) -> dict
                 "failed": 1,
                 "fatal": True,
                 "error": (
-                    "Unrecognized JSON shape. Expected either openFDA label export "
-                    '{"meta":..., "results":[...]} or a list / {"rows":[...]} of objects with '
-                    f"fields: {', '.join(REQUIRED_FIELDS)}"
+                    "Unrecognized JSON shape. Expected seed interactions bundle, "
+                    f'or a list / {{"rows":[...]}} with fields: {", ".join(REQUIRED_FIELDS)}'
                 ),
             }
     else:
         try:
+            stream = io.StringIO(text)
+            head = csv.DictReader(stream)
+            if is_ddii_csv_headers(head.fieldnames):
+                return ingest_ddii_csv_stream(db, io.StringIO(text))
             rows = _parse_csv(text)
         except Exception:
             return {

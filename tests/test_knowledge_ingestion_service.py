@@ -1,12 +1,10 @@
 import json
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from database import Base, Drug, DrugAlias, DrugInteraction
 from services.knowledge_ingestion_service import ingest_knowledge_dataset
-from services.openfda_ingestion_service import ingest_openfda_label_json_stream
 
 
 def _session():
@@ -37,33 +35,18 @@ def test_ingest_knowledge_dataset_skips_invalid_and_duplicates():
     assert stats.get("format") == "dataset_rows"
 
 
-def test_ingest_openfda_label_json_upload():
+def test_ingest_ddii_csv_drugbank_shape():
+    """db_drug_interactions.csv style: Drug 1, Drug 2, Interaction Description."""
     db = _session()
-    for name in ["warfarin", "ibuprofen", "naproxen", "aspirin", "clarithromycin", "simvastatin"]:
-        drug = Drug(generic_name=name)
-        db.add(drug)
-        db.flush()
-        db.add(DrugAlias(drug_id=drug.id, alias=name))
-    db.commit()
-
-    bundle = {
-        "meta": {"results": {"total": 1}},
-        "results": [
-            {
-                "openfda": {
-                    "generic_name": ["Warfarin"],
-                    "set_id": ["set-w"],
-                },
-                "drug_interactions": [
-                    "Concurrent use of warfarin and NSAIDs increases bleeding risk."
-                ],
-            },
-        ],
-    }
-    stats = ingest_knowledge_dataset("labels.json", json.dumps(bundle).encode("utf-8"), db)
-    assert stats.get("format") == "openfda_label_json"
-    assert stats["inserted"] >= 1
-    assert stats["total_fetched"] == 1
+    csv_text = (
+        "Drug 1,Drug 2,Interaction Description\n"
+        "warfarin,aspirin,Concurrent use may increase bleeding risk.\n"
+        "metformin,cimetidine,May increase metformin exposure.\n"
+    )
+    stats = ingest_knowledge_dataset("db_drug_interactions.csv", csv_text.encode("utf-8"), db)
+    assert stats.get("format") == "db_drug_interactions_csv"
+    assert stats.get("inserted", 0) >= 1
+    assert stats.get("total_rows", 0) >= 1
 
 
 def test_ingest_json_unrecognized_shape_returns_fatal():
@@ -107,7 +90,6 @@ def test_ingest_seed_shaped_json_idempotent():
 
 
 def test_ingest_seed_merges_when_drugs_already_exist():
-    """If openFDA (or anything) created Drug rows first, startup seed used to skip entirely."""
     db = _session()
     warfarin = Drug(generic_name="warfarin")
     db.add(warfarin)
@@ -123,35 +105,3 @@ def test_ingest_seed_merges_when_drugs_already_exist():
     assert stats["inserted"] == 1
     assert db.query(Drug).count() == 2
     assert db.query(DrugInteraction).count() == 1
-
-
-def test_ingest_openfda_label_json_stream_smoke(tmp_path, monkeypatch):
-    monkeypatch.setenv("OPENFDA_STREAM_COMMIT_EVERY", "1")
-    db = _session()
-    bundle = {
-        "meta": {"results": {"total": 2}},
-        "results": [
-            {
-                "openfda": {
-                    "generic_name": ["Warfarin"],
-                    "set_id": ["set-w"],
-                },
-                "drug_interactions": [
-                    "Concurrent use of warfarin and NSAIDs increases bleeding risk."
-                ],
-            },
-            {
-                "openfda": {
-                    "generic_name": ["Aspirin"],
-                    "set_id": ["set-a"],
-                },
-                "drug_interactions": ["Monitor when combining aspirin with anticoagulants."],
-            },
-        ],
-    }
-    path = tmp_path / "labels.json"
-    path.write_text(json.dumps(bundle), encoding="utf-8")
-    stats = ingest_openfda_label_json_stream(db, str(path))
-    assert stats.get("streaming") is True
-    assert stats["total_fetched"] == 2
-    assert stats["inserted"] >= 1

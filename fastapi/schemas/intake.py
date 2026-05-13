@@ -17,6 +17,7 @@ class StatusHistoryEntry(BaseModel):
 class IntakeCreate(BaseModel):
     patient_name: str = Field(..., min_length=1, max_length=100)
     patient_age: Optional[int] = Field(None, ge=0, le=150)
+    patient_gender: Optional[str] = Field(None, max_length=32)
     patient_allergies: Optional[str] = Field(None, max_length=500)
     medications: str = Field(..., min_length=1)
     current_medications: Optional[str] = None
@@ -29,6 +30,7 @@ class IntakeOut(BaseModel):
     id: int
     patient_name: str
     patient_age: Optional[int] = None
+    patient_gender: Optional[str] = None
     patient_allergies: Optional[str] = None
     medications: str
     current_medications: Optional[str] = None
@@ -42,6 +44,10 @@ class IntakeOut(BaseModel):
     dispensed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+    # Workflow (Kroll-style; computed — not DB columns)
+    stage_display: str = ""
+    pickup_ready: bool = False
+    workflow_hint: str = ""
 
 
 class CounselingPointsUpdate(BaseModel):
@@ -59,6 +65,7 @@ class DispenseUpdate(BaseModel):
 class EvaluateIntakeRequest(BaseModel):
     patient_name: str = Field(..., min_length=1, max_length=100)
     patient_age: Optional[int] = Field(None, ge=0, le=150)
+    patient_gender: Optional[str] = Field(None, max_length=32)
     patient_allergies: Optional[str] = Field(None, max_length=500)
     medications: str = Field(..., min_length=1)
     current_medications: Optional[str] = None

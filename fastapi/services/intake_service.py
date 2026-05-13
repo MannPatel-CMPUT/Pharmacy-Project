@@ -5,7 +5,8 @@ import json
 import logging
 
 from core.constants import ALLOWED_STATUSES, ALLOWED_TRANSITIONS
-from schemas.intake import IntakeCreate, EvaluateIntakeRequest
+from core.workflow import STAGE_DISPLAY, is_pickup_ready, next_stage_hint
+from schemas.intake import IntakeCreate, EvaluateIntakeRequest, IntakeOut
 from database import Intake, StatusHistory
 from services.counseling_service import generate_counseling
 from services.drug_interaction_service import check_drug_interactions, generate_counseling_points
@@ -32,6 +33,19 @@ _RISK_ORDER = ["None", "Low", "Moderate", "High", "Very High"]
 
 logger = logging.getLogger(__name__)
 
+
+def enrich_intake_out(intake: Intake) -> IntakeOut:
+    """Add workflow labels for UI / browser notifications (pickup-ready, stage name)."""
+    base = IntakeOut.model_validate(intake)
+    return base.model_copy(
+        update={
+            "stage_display": STAGE_DISPLAY.get(intake.status, intake.status.replace("_", " ").title()),
+            "pickup_ready": is_pickup_ready(intake.status),
+            "workflow_hint": next_stage_hint(intake.status),
+        }
+    )
+
+
 def create_intake(db: Session, data: IntakeCreate) -> Intake:
     logger.info(
         "intake create normalized_medications new=%s current=%s",
@@ -43,12 +57,14 @@ def create_intake(db: Session, data: IntakeCreate) -> Intake:
         data.medications,
         data.current_medications,
         patient_age=data.patient_age,
+        patient_gender=data.patient_gender,
     )
     interactions_json = json.dumps(interactions) if interactions else None
 
     intake = Intake(
         patient_name=data.patient_name,
         patient_age=data.patient_age,
+        patient_gender=data.patient_gender,
         patient_allergies=data.patient_allergies,
         medications=data.medications,
         current_medications=data.current_medications,
@@ -195,6 +211,7 @@ def _recompute_intake_interactions(db: Session, intake: Intake) -> dict:
         intake.medications,
         intake.current_medications,
         patient_age=intake.patient_age,
+        patient_gender=intake.patient_gender,
     )
     intake.drug_interactions = json.dumps(interactions) if interactions else None
     counseling_result = generate_counseling(
@@ -229,8 +246,7 @@ def check_interactions_for_intake(db: Session, intake_id: int) -> dict:
 def evaluate_intake_interactions(db: Session, data: EvaluateIntakeRequest) -> dict:
     """
     Evaluate drug interactions, allergy warnings, and lifestyle cautions without saving an intake.
-    Uses the existing local knowledge base (seed + openFDA-enriched DB rows).
-    Does NOT call openFDA live — enrichment happens via create intake.
+    Uses the local drug_interactions table (from configured CSV / seed data).
     """
     try:
         raw_interactions = check_drug_interactions(
@@ -238,7 +254,7 @@ def evaluate_intake_interactions(db: Session, data: EvaluateIntakeRequest) -> di
             data.medications,
             data.current_medications,
             patient_age=data.patient_age,
-            enrich=False,
+            patient_gender=data.patient_gender,
         )
     except Exception:
         logger.exception("evaluate_intake: interaction detection failed")
@@ -282,6 +298,7 @@ def evaluate_intake_interactions(db: Session, data: EvaluateIntakeRequest) -> di
         renal_status=data.renal_status,
         hepatic_status=data.hepatic_status,
         pregnancy=data.pregnancy,
+        patient_gender=data.patient_gender,
         medications=data.medications,
         current_medications=data.current_medications,
     )
@@ -299,7 +316,7 @@ def evaluate_intake_interactions(db: Session, data: EvaluateIntakeRequest) -> di
 
 
 def refresh_all_intake_interaction_snapshots(db: Session) -> dict[str, int]:
-    """Re-run interaction detection and counseling for every intake (e.g. after knowledge sync)."""
+    """Re-run interaction detection and counseling for every intake."""
     updated = 0
     for intake in db.query(Intake).all():
         try:
@@ -323,10 +340,12 @@ def get_statistics(db: Session) -> dict:
     total = db.query(Intake).count()
     by_status = {status: db.query(Intake).filter(Intake.status == status).count() for status in ALLOWED_STATUSES}
     dispensed_count = db.query(Intake).filter(Intake.dispensed == "yes").count()
+    ready_for_pickup = db.query(Intake).filter(Intake.status == "filled").count()
     return {
         "total": total,
         "by_status": by_status,
-        "dispensed_count": dispensed_count
+        "dispensed_count": dispensed_count,
+        "ready_for_pickup": ready_for_pickup,
     }
 
 

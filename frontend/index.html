@@ -44,15 +44,45 @@
     }
 
     header.panel { margin-bottom: 14px; }
+    .header-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+    .header-title-row h1 { margin: 0; flex: 1; min-width: 200px; font-size: 1.6rem; }
+    .btn-logout {
+      background: #4b5563;
+      flex-shrink: 0;
+    }
+    .btn-logout:hover { opacity: 0.92; }
+
     h1 { margin: 0 0 6px; font-size: 1.6rem; }
     .subtitle { color: var(--muted); margin-bottom: 10px; }
-
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 12px;
-      align-items: center;
+    .hero-taglines {
+      margin: 0 0 12px;
+      padding: 0;
+      list-style: none;
+      font-size: .92rem;
+      color: #374151;
+      line-height: 1.55;
+    }
+    .hero-taglines li {
+      padding: 3px 0 3px 22px;
+      position: relative;
+    }
+    .hero-taglines li::before {
+      content: "";
+      position: absolute;
+      left: 6px;
+      top: 0.65em;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--primary);
+      opacity: 0.75;
     }
 
     .stats {
@@ -131,10 +161,41 @@
     .btn.warning { background: var(--warning); }
     .btn.danger { background: var(--danger); }
 
+    .intakes-column {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      min-height: 0;
+    }
     .intake-list {
       display: grid;
       gap: 10px;
-      max-height: 78vh;
+      max-height: 58vh;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .patient-search-section {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+    .patient-search-section h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .patient-search-section .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin: 0 0 8px;
+      line-height: 1.45;
+    }
+    #patient-search-results {
+      margin-top: 10px;
+      display: grid;
+      gap: 10px;
+      max-height: 42vh;
       overflow: auto;
       padding-right: 2px;
     }
@@ -260,23 +321,123 @@
       border-top: 2px solid var(--line);
       padding-top: 14px;
     }
+
+    .workflow-track {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 8px;
+      align-items: center;
+      font-size: .78rem;
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+    }
+    .workflow-track .step {
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      color: var(--muted);
+    }
+    .workflow-track .step.on {
+      background: #dbeafe;
+      border-color: #93c5fd;
+      color: #1e40af;
+      font-weight: 700;
+    }
+    .workflow-track .step.pickup {
+      background: #dcfce7;
+      border-color: #86efac;
+      color: #14532d;
+      font-weight: 700;
+    }
+    .pickup-banner {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: linear-gradient(90deg, #dcfce7, #d1fae5);
+      border: 1px solid #86efac;
+      font-size: .86rem;
+      font-weight: 600;
+      color: #14532d;
+    }
+    .pickup-notify-box {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #86efac;
+      background: #f0fdf4;
+    }
+    .pickup-notify-box .label-row {
+      font-size: .78rem;
+      font-weight: 700;
+      color: #14532d;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .pickup-notify-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .pickup-notify-actions .btn { font-size: .78rem; padding: 7px 10px; text-decoration: none; display: inline-block; }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(17, 24, 39, 0.48);
+      z-index: 3000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--panel);
+      border-radius: 12px;
+      max-width: 720px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: auto;
+      padding: 18px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+      border: 1px solid var(--line);
+    }
+    .modal-box h3 { margin: 0 0 8px; font-size: 1.05rem; }
+    .modal-box .modal-hint { font-size: .8rem; color: var(--muted); margin-bottom: 10px; line-height: 1.45; }
+    .modal-box textarea.counseling-edit {
+      min-height: 280px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .84rem;
+      line-height: 1.5;
+    }
+    .modal-actions { display: flex; gap: 10px; margin-top: 14px; justify-content: flex-end; flex-wrap: wrap; }
   </style>
 </head>
 <body>
   <div class="container">
     <header class="panel">
-      <h1>💊 Pharmacy Workflow Automation</h1>
-      <div class="subtitle">Deterministic interactions + configurable counseling pipeline.</div>
-
-      <div class="toolbar">
-        <button class="btn warning" id="sync-openfda-btn">🔄 Sync openFDA</button>
-        <span class="hint" id="openfda-result">No sync run yet.</span>
+      <div class="header-title-row">
+        <h1>💊 Pharmacy Workflow Automation</h1>
+        <button type="button" class="btn btn-logout" id="logout-btn" title="Sign out and return to login">Log out</button>
       </div>
+      <ul class="hero-taglines" aria-label="What this app covers">
+        <li><strong>Drug interactions</strong> — screen new and current meds against your local interaction database</li>
+        <li><strong>Workflow</strong> — track each prescription from received through pickup and completion</li>
+        <li><strong>Counseling</strong> — structured counseling points you can review and edit</li>
+      </ul>
+      <div class="subtitle">Data loads from your server’s SQLite database (CSV ingest via <code>DRUG_INTERACTIONS_CSV</code> or <code>fastapi/data/</code>). Interactions are local only (no live sync).</div>
 
       <div class="stats" id="stats">
         <div class="stat"><div class="label">Total</div><div class="value" id="total-count">0</div></div>
         <div class="stat"><div class="label">New</div><div class="value" id="new-count">0</div></div>
         <div class="stat"><div class="label">Ready to Fill</div><div class="value" id="ready-count">0</div></div>
+        <div class="stat"><div class="label">Ready for pickup</div><div class="value" id="pickup-count">0</div></div>
         <div class="stat"><div class="label">Dispensed</div><div class="value" id="dispensed-count">0</div></div>
       </div>
     </header>
@@ -296,9 +457,19 @@
               <input id="patient-age" type="number" min="0" max="150" />
             </div>
             <div class="field">
-              <label>Allergies</label>
-              <input id="patient-allergies" placeholder="e.g. penicillin" />
+              <label>Gender</label>
+              <select id="patient-gender">
+                <option value="">Unknown / not specified</option>
+                <option value="female">Female</option>
+                <option value="male">Male</option>
+                <option value="other">Other</option>
+                <option value="prefer not to say">Prefer not to say</option>
+              </select>
             </div>
+          </div>
+          <div class="field">
+            <label>Allergies</label>
+            <input id="patient-allergies" placeholder="e.g. penicillin" />
           </div>
 
           <div class="field">
@@ -309,7 +480,7 @@
           <div class="field">
             <label>Current medications</label>
             <textarea id="current-medications" placeholder="aspirin"></textarea>
-            <div class="hint" style="grid-column: 1 / -1; margin-top: 4px;">Interaction check uses your local database and, when enabled on the server, pulls matching SPL labels from openFDA for the drug names you enter (free API; first create may take a few seconds).</div>
+            <div class="hint" style="grid-column: 1 / -1; margin-top: 4px;">Interaction check uses pairs loaded from your <code>db_drug_interactions.csv</code> into the server database (see <code>DRUG_INTERACTIONS_CSV</code>).</div>
           </div>
 
           <h2 style="margin-top:14px;">Patient Risk Context</h2>
@@ -380,7 +551,7 @@
         </div>
       </section>
 
-      <section class="panel">
+      <section class="panel intakes-column">
         <div class="row-between" style="margin-bottom:10px;">
           <h2 style="margin:0;">Intakes</h2>
           <div style="display:flex; gap:8px; align-items:center;">
@@ -398,17 +569,124 @@
           </div>
         </div>
         <div id="intake-list" class="intake-list"></div>
+
+        <div class="patient-search-section">
+          <h3>Find by patient name</h3>
+          <p class="hint">Search all intakes (any status) whose patient name contains your text. Results show the same details as the cards above.</p>
+          <input type="search" id="patient-search-input" placeholder="e.g. Smith or Maria" autocomplete="off" />
+          <div id="patient-search-results" class="muted" style="margin-top:10px;">Type a patient name to look up intakes.</div>
+        </div>
       </section>
+    </div>
+  </div>
+
+  <div id="counseling-modal" class="modal-overlay" onclick="if (event.target === this) closeCounselingModal();" role="dialog" aria-modal="true" aria-labelledby="counseling-modal-title">
+    <div class="modal-box" onclick="event.stopPropagation();">
+      <h3 id="counseling-modal-title">Edit counseling</h3>
+      <p class="modal-hint">Full counseling text for this intake. Each non-empty line appears as a point below (leading • or - is optional). Save replaces the auto-generated text.</p>
+      <textarea id="counseling-modal-text" class="counseling-edit" placeholder="Enter or adjust counseling for the patient…"></textarea>
+      <div class="modal-actions">
+        <button type="button" class="btn secondary" onclick="closeCounselingModal();">Cancel</button>
+        <button type="button" class="btn success" onclick="saveCounselingFromModal();">Save counseling</button>
+      </div>
     </div>
   </div>
 
   <script>
     const API_BASE = window.location.origin;
 
+    const WORKFLOW_STEPS = [
+      { key: 'new', label: 'Received' },
+      { key: 'triage', label: 'Data entry' },
+      { key: 'waiting_info', label: 'Clarify' },
+      { key: 'ready_to_fill', label: 'Fill queue' },
+      { key: 'filled', label: 'Ready for pickup' },
+      { key: 'dispensed', label: 'Picked up' },
+      { key: 'completed', label: 'Done' },
+    ];
+
+    function renderWorkflowTrack(status) {
+      const idx = WORKFLOW_STEPS.findIndex(s => s.key === status);
+      return WORKFLOW_STEPS.map((s, i) => {
+        let cls = 'step';
+        if (i === idx) cls += s.key === 'filled' ? ' pickup' : ' on';
+        return `<span class="${cls}">${s.label}</span>`;
+      }).join('<span class="muted">→</span>');
+    }
+
+    function pickupReadyMessage(intakeId, patientName) {
+      const who = (patientName && String(patientName).trim()) || 'Patient';
+      return `Hi ${who}, your prescription (order #${intakeId}) is ready for pickup at the pharmacy. Please bring a valid ID. Thank you.`;
+    }
+
+    function notifyPickupBrowser(intakeId, patientName) {
+      if (!('Notification' in window)) {
+        alert('This browser does not support desktop notifications. Use Copy or SMS/Email below.');
+        return;
+      }
+      const run = () => {
+        try {
+          new Notification('Prescription ready for pickup', {
+            body: pickupReadyMessage(intakeId, patientName),
+            tag: `pickup-${intakeId}`,
+          });
+        } catch (e) {
+          alert('Could not show notification: ' + (e.message || e));
+        }
+      };
+      if (Notification.permission === 'granted') {
+        run();
+        return;
+      }
+      if (Notification.permission === 'denied') {
+        alert('Notifications are blocked for this site. Enable them in browser settings, or use Copy / SMS / Email.');
+        return;
+      }
+      Notification.requestPermission().then((p) => {
+        if (p === 'granted') run();
+        else alert('Notification permission not granted. You can still use Copy, SMS, or Email.');
+      });
+    }
+
+    function copyPickupMessage(intakeId, patientName) {
+      const text = pickupReadyMessage(intakeId, patientName);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => alert('Message copied. Paste into text, email, or your patient system.')).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
+    }
+
+    function fallbackCopy(text) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        alert('Message copied.');
+      } catch (e) {
+        prompt('Copy this message:', text);
+      }
+      document.body.removeChild(ta);
+    }
+
+    function openPickupSms(intakeId, patientName) {
+      const body = encodeURIComponent(pickupReadyMessage(intakeId, patientName));
+      window.location.href = `sms:?body=${body}`;
+    }
+
+    function openPickupEmail(intakeId, patientName) {
+      const subj = encodeURIComponent(`Prescription ready for pickup — order #${intakeId}`);
+      const body = encodeURIComponent(pickupReadyMessage(intakeId, patientName));
+      window.location.href = `mailto:?subject=${subj}&body=${body}`;
+    }
+
     const fmt = (v) => (v === null || v === undefined || v === '' ? '—' : v);
 
     function buildPatientContextString() {
       const ctx = {
+        patient_gender: document.getElementById('patient-gender').value || 'unknown',
         renal_status: document.getElementById('renal-status').value || 'unknown',
         hepatic_status: document.getElementById('hepatic-status').value || 'unknown',
         alcohol_use: document.getElementById('alcohol-use').value || 'unknown',
@@ -422,7 +700,11 @@
       const controller = new AbortController();
       const t = setTimeout(() => controller.abort(), timeout);
       try {
-        const res = await fetch(url, { ...options, signal: controller.signal });
+        const res = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+          cache: options.cache ?? 'no-store',
+        });
         clearTimeout(t);
         return res;
       } catch (e) {
@@ -431,16 +713,12 @@
       }
     }
 
-    function detectGenerationMode(counselingText = '') {
-      return counselingText.includes('Interaction summary:') ? 'ollama' : 'template';
-    }
-
     function parseCounselingPoints(text = '') {
       return text
         .split('\n')
         .map(line => line.trim())
-        .filter(line => line.startsWith('•'))
-        .map(line => line.replace(/^•\s*/, ''));
+        .filter(line => line.length > 0)
+        .map(line => line.replace(/^[•\-*]\s*/, ''));
     }
 
     function redFlagsFromInteractions(interactions = []) {
@@ -541,6 +819,11 @@
       return warnings;
     }
 
+    const _FEMALE_INDICATORS_JS = new Set(['female','f','woman','girl']);
+    const _MALE_INDICATORS_JS   = new Set(['male','m','man','boy']);
+    const _TERATOGEN_RE = /methotrexate|isotretinoin|leflunomide|thalidomide|azathioprine|valproat|lithium|warfarin|ribavirin|mycophenolate|bosentan|finasteride|dutasteride/;
+    const _MALE_MED_RE  = /sildenafil|tadalafil|vardenafil|finasteride|dutasteride|testosterone|tamsulosin|alfuzosin/;
+
     function computeLifestyleWarnings(ctx, medications, currentMedications) {
       const warnings = [], seen = new Set();
       const meds = [medications, currentMedications].filter(Boolean).join(' ').toLowerCase();
@@ -550,6 +833,7 @@
       const renal = (ctx.renal_status || '').toLowerCase();
       const hepatic = (ctx.hepatic_status || '').toLowerCase();
       const preg = (ctx.pregnancy || '').toLowerCase();
+      const gender = (ctx.patient_gender || '').toLowerCase();
       if (['yes','former'].includes(smoking))
         add('Smoking can affect metabolism of many medications and may reduce effectiveness. Dose adjustments may be needed.');
       if (['regular','occasional'].includes(alcohol))
@@ -564,6 +848,19 @@
         add(`Liver impairment (${hepatic}) affects drug metabolism — some medications may be less effective or more toxic.`);
       if (preg === 'yes')
         add('Please confirm all medications are safe during pregnancy with your doctor or pharmacist.');
+      // Gender-specific
+      if (_FEMALE_INDICATORS_JS.has(gender)) {
+        if (_TERATOGEN_RE.test(meds))
+          add('⚠ Gender-specific (female): one or more medications may be teratogenic or carry sex-specific risk. Confirm contraception status and safety with the prescriber.');
+        if (preg === 'yes')
+          add('⚠ Pregnancy confirmed for a female patient — ensure all medications have been assessed for pregnancy safety.');
+      }
+      if (_MALE_INDICATORS_JS.has(gender)) {
+        if (_MALE_MED_RE.test(meds))
+          add('ℹ Gender-specific note (male): one or more medications are indicated specifically for male patients — verify indication and dosing.');
+        if (preg === 'yes')
+          add('⚠ Pregnancy recorded for a patient identified as male — please verify the gender or pregnancy field before dispensing.');
+      }
       return warnings;
     }
 
@@ -645,44 +942,41 @@
         document.getElementById('total-count').textContent = stats.total || 0;
         document.getElementById('new-count').textContent = stats.by_status?.new || 0;
         document.getElementById('ready-count').textContent = stats.by_status?.ready_to_fill || 0;
+        document.getElementById('pickup-count').textContent = stats.ready_for_pickup ?? 0;
         document.getElementById('dispensed-count').textContent = stats.dispensed_count || 0;
       } catch (e) {
         console.error('Stats error', e);
       }
     }
 
-    async function loadIntakes() {
-      const status = document.getElementById('status-filter').value;
-      const url = status ? `${API_BASE}/intakes?status=${status}` : `${API_BASE}/intakes`;
-      const list = document.getElementById('intake-list');
-
-      try {
-        const res = await fetchWithTimeout(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const intakes = await res.json();
-
-        if (!intakes.length) {
-          list.innerHTML = '<div class="muted">No intakes found.</div>';
-          return;
+    function buildIntakeCardHTML(intake) {
+      let interactions = [];
+      if (intake.drug_interactions) {
+        try {
+          interactions =
+            typeof intake.drug_interactions === 'string'
+              ? JSON.parse(intake.drug_interactions)
+              : Array.isArray(intake.drug_interactions)
+                ? intake.drug_interactions
+                : [];
+        } catch (parseErr) {
+          console.warn('intake', intake.id, 'drug_interactions parse failed', parseErr);
         }
+      }
+      const counselingPoints = parseCounselingPoints(intake.counseling_points || '');
+      const ctx = _parsePatientContext(intake.notes);
+      const allergyWarnings = computeAllergyWarnings(intake.patient_allergies, intake.medications, intake.current_medications);
+      const lifestyleWarnings = computeLifestyleWarnings(ctx, intake.medications, intake.current_medications);
 
-        list.innerHTML = intakes.map(intake => {
-          const interactions = intake.drug_interactions ? JSON.parse(intake.drug_interactions) : [];
-          const counselingPoints = parseCounselingPoints(intake.counseling_points || '');
-          const generationMode = detectGenerationMode(intake.counseling_points || '');
-          const ctx = _parsePatientContext(intake.notes);
-          const allergyWarnings = computeAllergyWarnings(intake.patient_allergies, intake.medications, intake.current_medications);
-          const lifestyleWarnings = computeLifestyleWarnings(ctx, intake.medications, intake.current_medications);
+      const highestSev = interactions.reduce((acc, i) => {
+        const order = ['contraindicated','major','moderate','minor','unknown'];
+        const idx = order.indexOf((i.severity||'unknown').toLowerCase());
+        return idx < acc ? idx : acc;
+      }, 99);
+      const overallRisk = highestSev <= 1 ? 'High' : highestSev === 2 ? 'Moderate' : highestSev === 3 ? 'Low' : interactions.length ? 'Low' : 'None';
+      const rc = _riskClass(overallRisk);
 
-          const highestSev = interactions.reduce((acc, i) => {
-            const order = ['contraindicated','major','moderate','minor','unknown'];
-            const idx = order.indexOf((i.severity||'unknown').toLowerCase());
-            return idx < acc ? idx : acc;
-          }, 99);
-          const overallRisk = highestSev <= 1 ? 'High' : highestSev === 2 ? 'Moderate' : highestSev === 3 ? 'Low' : interactions.length ? 'Low' : 'None';
-          const rc = _riskClass(overallRisk);
-
-          return `
+      return `
             <div class="intake-card">
               <div class="row-between">
                 <div>
@@ -691,15 +985,33 @@
                 </div>
                 <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
                   <span class="risk-badge ${rc}">Risk: ${overallRisk}</span>
-                  <span class="status-badge">${fmt(intake.status).replace('_', ' ')}</span>
+                  <span class="status-badge">${fmt(intake.stage_display || intake.status).replace('_', ' ')}</span>
+                  ${intake.assigned_to ? `<span class="pill" title="Assigned pharmacist / tech">${fmt(intake.assigned_to)}</span>` : ''}
                 </div>
               </div>
 
+              <div class="workflow-track" title="Prescription workflow (Kroll-style)">
+                ${renderWorkflowTrack(intake.status)}
+              </div>
+              ${intake.workflow_hint ? `<div class="muted" style="font-size:.78rem; margin-top:4px;">${intake.workflow_hint}</div>` : ''}
+              ${intake.pickup_ready ? `
+              <div class="pickup-notify-box">
+                <div class="pickup-banner" style="margin-top:0;">✓ Ready for patient pickup</div>
+                <div class="label-row">Notify patient</div>
+                <p class="muted" style="font-size:.78rem; margin:0 0 8px; line-height:1.45;">Use desktop alert, copy the text, or open SMS / email. Add the patient’s phone or address in your app when prompted.</p>
+                <div class="pickup-notify-actions">
+                  <button type="button" class="btn secondary" onclick="notifyPickupBrowser(${intake.id}, ${JSON.stringify((intake.patient_name || ''))})">Desktop alert</button>
+                  <button type="button" class="btn secondary" onclick="copyPickupMessage(${intake.id}, ${JSON.stringify((intake.patient_name || ''))})">Copy message</button>
+                  <button type="button" class="btn secondary" onclick="openPickupSms(${intake.id}, ${JSON.stringify((intake.patient_name || ''))})">Open SMS</button>
+                  <button type="button" class="btn secondary" onclick="openPickupEmail(${intake.id}, ${JSON.stringify((intake.patient_name || ''))})">Email draft</button>
+                </div>
+              </div>` : ''}
+
               <div class="section">
-                <div><strong>Patient:</strong> Age ${fmt(intake.patient_age)} • Allergies: ${fmt(intake.patient_allergies)}</div>
+                <div><strong>Patient:</strong> Age ${fmt(intake.patient_age)}${intake.patient_gender ? ` • ${intake.patient_gender.charAt(0).toUpperCase() + intake.patient_gender.slice(1)}` : ''} • Allergies: ${fmt(intake.patient_allergies)}</div>
+                <div><strong>Assigned to:</strong> ${intake.assigned_to ? fmt(intake.assigned_to) : '<span class="muted">Unassigned</span>'}</div>
                 <div><strong>New meds:</strong> ${fmt(intake.medications)}</div>
                 <div><strong>Current meds:</strong> ${fmt(intake.current_medications)}</div>
-                <div style="margin-top:4px;"><strong>Mode:</strong> <span class="pill">${generationMode}</span></div>
               </div>
 
               <div class="section">
@@ -724,7 +1036,10 @@
               </div>` : ''}
 
               <div class="section">
-                <strong>Counseling Points</strong>
+                <div class="row-between" style="align-items:center; margin-bottom:6px;">
+                  <strong>Counseling Points</strong>
+                  <button type="button" class="btn secondary" style="font-size:.78rem;padding:6px 10px;" onclick="openCounselingEditor(${intake.id})">Edit counseling</button>
+                </div>
                 ${counselingPoints.length
                   ? `<ul class="mini-list">${counselingPoints.map(p => `<li>${p}</li>`).join('')}</ul>`
                   : `<div class="muted">No structured counseling points extracted.</div>`}
@@ -738,10 +1053,79 @@
               </div>
             </div>
           `;
-        }).join('');
+    }
+
+    async function loadIntakes() {
+      const status = document.getElementById('status-filter').value;
+      const url = status ? `${API_BASE}/intakes?status=${status}` : `${API_BASE}/intakes`;
+      const list = document.getElementById('intake-list');
+
+      try {
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const intakes = await res.json();
+
+        if (!intakes.length) {
+          list.innerHTML = '<div class="muted">No intakes found.</div>';
+          return;
+        }
+
+        list.innerHTML = intakes.map((intake) => buildIntakeCardHTML(intake)).join('');
       } catch (e) {
         list.innerHTML = `<div class="muted">Error loading intakes: ${e.message}</div>`;
       }
+    }
+
+    let patientSearchDebounce = null;
+    async function runPatientSearch() {
+      const input = document.getElementById('patient-search-input');
+      const out = document.getElementById('patient-search-results');
+      if (!input || !out) return;
+      const q = input.value.trim();
+      if (!q) {
+        out.className = 'muted';
+        out.style.marginTop = '10px';
+        out.innerHTML = 'Type a patient name to look up intakes.';
+        return;
+      }
+      out.className = '';
+      out.style.marginTop = '10px';
+      out.innerHTML = '<div class="muted">Searching…</div>';
+      try {
+        const url = `${API_BASE}/intakes?search=${encodeURIComponent(q)}&limit=50`;
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const intakes = await res.json();
+        if (!intakes.length) {
+          out.innerHTML = '<div class="muted">No intakes match that name.</div>';
+          return;
+        }
+        out.innerHTML = intakes.map((intake) => buildIntakeCardHTML(intake)).join('');
+      } catch (e) {
+        out.innerHTML = `<div class="muted">Search failed: ${e.message}</div>`;
+      }
+    }
+
+    function schedulePatientSearch() {
+      clearTimeout(patientSearchDebounce);
+      patientSearchDebounce = setTimeout(runPatientSearch, 350);
+    }
+
+    function refreshPatientSearchIfActive() {
+      const el = document.getElementById('patient-search-input');
+      if (el && el.value.trim()) runPatientSearch();
+    }
+
+    async function logoutSession() {
+      try {
+        await fetch(`${API_BASE}/api/auth/logout`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+      } catch (e) {
+        /* still leave workspace */
+      }
+      window.location.href = '/login';
     }
 
     async function updateStatus(intakeId, status) {
@@ -757,17 +1141,35 @@
       }
       loadIntakes();
       loadStatistics();
+      refreshPatientSearchIfActive();
     }
 
     async function assignIntake(intakeId) {
-      const user = prompt('Assign to user:');
+      const user = (prompt('Assign to user (name or initials):') || '').trim();
       if (!user) return;
-      const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/assign`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user })
-      });
-      if (res.ok) loadIntakes();
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/assign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user })
+        });
+        if (!res.ok) {
+          let detail = 'Assign failed';
+          try {
+            const err = await res.json();
+            if (err.detail) {
+              detail = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+            }
+          } catch (e) {}
+          alert(detail);
+          return;
+        }
+        await loadIntakes();
+        await loadStatistics();
+        refreshPatientSearchIfActive();
+      } catch (e) {
+        alert((e && e.message) || 'Assign failed (network error).');
+      }
     }
 
     async function dispenseMedication(intakeId) {
@@ -780,17 +1182,94 @@
       if (res.ok) {
         loadIntakes();
         loadStatistics();
+        refreshPatientSearchIfActive();
       }
     }
 
     async function recheckInteractions(intakeId) {
-      const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/check-interactions`);
-      if (!res.ok) {
-        alert('Re-check failed');
+      if (!confirm('Re-check drug interactions? This will re-run interaction detection and update counseling for this intake.')) {
         return;
       }
-      loadIntakes();
+      try {
+        const res = await fetchWithTimeout(
+          `${API_BASE}/intakes/${intakeId}/check-interactions`,
+          { method: 'POST' },
+          120000
+        );
+        if (!res.ok) {
+          let detail = 'Re-check failed';
+          try {
+            const err = await res.json();
+            if (err.detail) {
+              detail = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+            }
+          } catch (e) {}
+          alert(detail);
+          return;
+        }
+        await loadIntakes();
+        await loadStatistics();
+        refreshPatientSearchIfActive();
+      } catch (e) {
+        const msg =
+          e && e.name === 'AbortError'
+            ? 'Re-check timed out. Try again or refresh the page.'
+            : (e && e.message) || 'Re-check failed (network error).';
+        alert(msg);
+      }
     }
+
+    let counselingModalIntakeId = null;
+
+    async function openCounselingEditor(intakeId) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}`);
+        if (!res.ok) throw new Error('Could not load intake');
+        const intake = await res.json();
+        counselingModalIntakeId = intakeId;
+        const name = intake.patient_name ? ` — ${intake.patient_name}` : '';
+        document.getElementById('counseling-modal-title').textContent = `Edit counseling (#${intakeId}${name})`;
+        document.getElementById('counseling-modal-text').value = intake.counseling_points || '';
+        document.getElementById('counseling-modal').classList.add('open');
+        setTimeout(() => document.getElementById('counseling-modal-text').focus(), 50);
+      } catch (e) {
+        alert(e.message || 'Failed to open editor');
+      }
+    }
+
+    function closeCounselingModal() {
+      document.getElementById('counseling-modal').classList.remove('open');
+      counselingModalIntakeId = null;
+    }
+
+    async function saveCounselingFromModal() {
+      const id = counselingModalIntakeId;
+      if (!id) return;
+      const text = document.getElementById('counseling-modal-text').value;
+      const res = await fetchWithTimeout(`${API_BASE}/intakes/${id}/counseling`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ counseling_points: text }),
+      });
+      if (!res.ok) {
+        let msg = 'Save failed';
+        try {
+          const err = await res.json();
+          msg = err.detail || msg;
+        } catch (e) {}
+        alert(msg);
+        return;
+      }
+      closeCounselingModal();
+      loadIntakes();
+      refreshPatientSearchIfActive();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && document.getElementById('counseling-modal').classList.contains('open')) {
+        closeCounselingModal();
+      }
+    });
 
     document.getElementById('intake-form').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -809,6 +1288,7 @@
       const createPayload = {
         patient_name: document.getElementById('patient-name').value,
         patient_age: document.getElementById('patient-age').value ? parseInt(document.getElementById('patient-age').value) : null,
+        patient_gender: document.getElementById('patient-gender').value || null,
         patient_allergies: document.getElementById('patient-allergies').value || null,
         medications: document.getElementById('medications').value,
         current_medications: document.getElementById('current-medications').value || null,
@@ -862,6 +1342,7 @@
         document.getElementById('intake-form').reset();
         loadIntakes();
         loadStatistics();
+        refreshPatientSearchIfActive();
       } catch (err) {
         loading.style.display = 'none';
         content.innerHTML = `<div class="muted">Error: ${err.message}</div>`;
@@ -874,26 +1355,10 @@
 
     document.getElementById('status-filter').addEventListener('change', loadIntakes);
 
-    document.getElementById('sync-openfda-btn').addEventListener('click', async () => {
-      const out = document.getElementById('openfda-result');
-      out.textContent = 'Sync running...';
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/knowledge/openfda-sync`, { method: 'POST' }, 30000);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Sync failed');
-        const skipped = data.skipped != null ? `, skipped: ${data.skipped}` : '';
-        const err = data.error ? ` | error: ${data.error}` : '';
-        const hint = data.hint ? ` | note: ${data.hint}` : '';
-        const skips = data.skip_reason_counts && Object.keys(data.skip_reason_counts).length
-          ? ` | skip_reasons: ${JSON.stringify(data.skip_reason_counts)}`
-          : '';
-        out.textContent = `Fetched: ${data.total_fetched}, parsed: ${data.parsed}, inserted: ${data.inserted}, failed: ${data.failed}${skipped}${skips}${err}${hint} | intakes refreshed: ${data.intakes_updated ?? '—'}`;
-        loadIntakes();
-        loadStatistics();
-      } catch (err) {
-        out.textContent = `Sync error: ${err.message}`;
-      }
-    });
+    document.getElementById('logout-btn').addEventListener('click', logoutSession);
+    document.getElementById('patient-search-input').addEventListener('input', schedulePatientSearch);
+
+    setInterval(() => { loadStatistics(); loadIntakes(); refreshPatientSearchIfActive(); }, 45000);
 
     (async function init() {
       loadStatistics();
