@@ -10,7 +10,7 @@ A FastAPI + SQLite workflow system for pharmacy intake processing with determini
 
 - 7-stage deterministic workflow: `new → triage → waiting_info → ready_to_fill → filled → dispensed → completed`
 - Deterministic interaction engine (no LLM detection/severity assignment)
-- Drug interaction data loaded at server startup from **`DRUG_INTERACTIONS_CSV`** (or `fastapi/data/db_drug_interactions.csv`), plus a merge from **`fastapi/data/drug_interactions.json`** for common pairs the bulk CSV may omit (e.g. warfarin + aspirin).
+- Drug interaction data: the full **`fastapi/data/db_drug_interactions.csv`** (Drug 1, Drug 2, Interaction Description) is **included in this repo** so Docker/Render loads every pair on first startup with no paid add-ons. Override with **`DRUG_INTERACTIONS_CSV`** if you use a different file. **`fastapi/data/drug_interactions.json`** still merges extra pairs the CSV may omit (e.g. warfarin + aspirin).
 - Counseling generation: deterministic template output (no LLM)
 - Frontend dashboard (vanilla HTML/CSS/JS):
   - intake creation
@@ -36,6 +36,8 @@ cp .env.example .env
 ```
 
 Default `.env` values work locally with SQLite.
+
+**Bundled interaction CSV:** `fastapi/data/db_drug_interactions.csv` is the full export (~21MB). The first time the API starts with an **empty** `pharmacy.db`, ingestion can take **several minutes** (normal). Use a **persistent disk** for `DATABASE_URL` on Render so you do not re-ingest on every redeploy unless you wipe the volume.
 
 ### 3) Build PairWise Rx shell (splash, login, sign up)
 
