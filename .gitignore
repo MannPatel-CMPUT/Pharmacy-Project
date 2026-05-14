@@ -52,3 +52,12 @@ start_server.sh
 start_server.py
 fastapi/reset_database.py
 .venv/
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
