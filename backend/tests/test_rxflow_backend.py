@@ -8,7 +8,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = "https://58cc5b94-0f34-4c71-b8c8-ce4456fc1aa9.preview.emergentagent.com"
+BASE_URL = "https://drug-compat-tool.preview.emergentagent.com"
 
 
 # ---------- shared fixtures ----------
