@@ -65,3 +65,12 @@ credentials.json
 # Auth runtime data (never commit — contains password hashes and reset tokens)
 fastapi/data/portal_users.json
 fastapi/data/password_resets.json
+-e 
+# Environment and credential files
+.env
+.env.*
+*.env
+credentials.json
+*.pem
+*.key
+.credentials
