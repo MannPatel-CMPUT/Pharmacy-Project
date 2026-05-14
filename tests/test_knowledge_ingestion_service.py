@@ -47,6 +47,37 @@ def test_ingest_ddii_csv_drugbank_shape():
     assert stats.get("format") == "db_drug_interactions_csv"
     assert stats.get("inserted", 0) >= 1
     assert stats.get("total_rows", 0) >= 1
+    from database import DrugInteraction as DI, Drug
+
+    def pair_sev(a: str, b: str) -> str | None:
+        da = db.query(Drug).filter_by(generic_name=a).first()
+        dbb = db.query(Drug).filter_by(generic_name=b).first()
+        if not da or not dbb:
+            return None
+        lo, hi = sorted([da.id, dbb.id])
+        ix = db.query(DI).filter_by(drug_a_id=lo, drug_b_id=hi).first()
+        return ix.severity if ix else None
+
+    assert pair_sev("warfarin", "aspirin") == "major"
+    assert pair_sev("metformin", "cimetidine") == "moderate"
+
+
+def test_ingest_ddii_csv_respects_risk_severity_column():
+    db = _session()
+    csv_text = (
+        "Drug 1,Drug 2,Interaction Description,Risk Severity\n"
+        "warfarin,aspirin,Some vague text.,minor\n"
+    )
+    stats = ingest_knowledge_dataset("db_drug_interactions.csv", csv_text.encode("utf-8"), db)
+    assert stats.get("format") == "db_drug_interactions_csv"
+    assert stats.get("inserted") == 1
+    from database import DrugInteraction as DI, Drug
+
+    da = db.query(Drug).filter_by(generic_name="warfarin").first()
+    dba = db.query(Drug).filter_by(generic_name="aspirin").first()
+    lo, hi = sorted([da.id, dba.id])
+    ix = db.query(DI).filter_by(drug_a_id=lo, drug_b_id=hi).one()
+    assert ix.severity == "minor"
 
 
 def test_ingest_json_unrecognized_shape_returns_fatal():

@@ -12,6 +12,11 @@ from typing import Any, TextIO
 from sqlalchemy.orm import Session
 
 from database import DrugInteraction
+from services.ddi_severity_classifier import (
+    ALLOWED_SEVERITIES,
+    classify_ddii_interaction_severity,
+    parse_explicit_ddii_severity,
+)
 from services.knowledge_repository import ensure_alias, get_or_create_drug, ordered_pair
 
 logger = logging.getLogger(__name__)
@@ -21,6 +26,7 @@ SOURCE_TAG = "db_drug_interactions_csv"
 _DDII_DRUG1 = ("drug 1", "drug1", "drug_a", "drug a")
 _DDII_DRUG2 = ("drug 2", "drug2", "drug_b", "drug b")
 _DDII_DESC = ("interaction description", "description", "clinical_effect", "clinical effect")
+_DDII_RISK = ("risk severity", "interaction severity", "clinical severity")
 
 
 def _norm_header(h: str) -> str:
@@ -36,25 +42,18 @@ def _map_ddii_row(raw: dict[str, str]) -> dict[str, str] | None:
         return None
     if not desc:
         return None
-    return {"drug_a": d1.lower(), "drug_b": d2.lower(), "description": desc}
+    risk_cell = next((lower_map[a] for a in _DDII_RISK if a in lower_map and lower_map[a]), None)
+    return {
+        "drug_a": d1.lower(),
+        "drug_b": d2.lower(),
+        "description": desc,
+        "explicit_severity": parse_explicit_ddii_severity(risk_cell),
+    }
 
 
 def _severity_from_ddii_description(description: str) -> str:
-    t = (description or "").lower()
-    if "contraindicat" in t or "should not be used" in t or "must not" in t:
-        return "contraindicated"
-    if any(x in t for x in ("life-threatening", "serious risk", "severe toxicity", "fatal")):
-        return "major"
-    if any(x in t for x in ("major", "significantly", "substantially")) and "risk" in t:
-        return "major"
-    if any(
-        x in t
-        for x in ("moderate", "may increase", "may decrease", "can increase", "can decrease", "can be increased")
-    ):
-        return "moderate"
-    if "minor" in t or "unlikely" in t:
-        return "minor"
-    return "moderate"
+    """Backward-compatible alias for :func:`classify_ddii_interaction_severity`."""
+    return classify_ddii_interaction_severity(description)
 
 
 def is_ddii_csv_headers(fieldnames: list[str] | None) -> bool:
@@ -126,7 +125,13 @@ def ingest_ddii_csv_stream(
         d1 = mapped["drug_a"]
         d2 = mapped["drug_b"]
         desc = mapped["description"][:8000]
-        severity = _severity_from_ddii_description(desc)
+        explicit = mapped.get("explicit_severity")
+        if explicit in ALLOWED_SEVERITIES:
+            severity = explicit
+        else:
+            severity = classify_ddii_interaction_severity(desc)
+        if severity not in ALLOWED_SEVERITIES:
+            severity = "moderate"
 
         try:
             drug_a = get_or_create_drug(db, d1)
