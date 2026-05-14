@@ -61,3 +61,7 @@ credentials.json
 *.pem
 *.key
 .credentials
+
+# Auth runtime data (never commit — contains password hashes and reset tokens)
+fastapi/data/portal_users.json
+fastapi/data/password_resets.json
