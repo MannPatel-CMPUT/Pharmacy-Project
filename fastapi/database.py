@@ -1,17 +1,37 @@
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey, UniqueConstraint
+from sqlalchemy import event, text
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
-from sqlalchemy import text
 import logging
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pharmacy.db")
 
+_connect_args: dict = {"check_same_thread": False}
+if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    # Wait for writers (e.g. background CSV ingest) instead of immediate "database is locked".
+    _connect_args["timeout"] = float(os.getenv("SQLITE_LOCK_TIMEOUT", "60"))
+
 engine = create_engine(
-    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+    SQLALCHEMY_DATABASE_URL,
+    connect_args=_connect_args,
+    pool_pre_ping=True,
 )
+
+
+@event.listens_for(engine, "connect")
+def _sqlite_pragmas(dbapi_connection, connection_record) -> None:
+    if not str(engine.url).startswith("sqlite"):
+        return
+    cur = dbapi_connection.cursor()
+    cur.execute("PRAGMA journal_mode=WAL")
+    cur.execute("PRAGMA busy_timeout=60000")
+    cur.execute("PRAGMA foreign_keys=ON")
+    cur.close()
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

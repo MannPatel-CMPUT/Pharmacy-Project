@@ -196,5 +196,8 @@ def ingest_ddii_csv_file(
     commit_every: int | None = None,
 ) -> dict[str, Any]:
     ce = commit_every if commit_every is not None else int(os.getenv("DDI_CSV_COMMIT_EVERY", "2000"))
+    if "sqlite" in (os.getenv("DATABASE_URL") or "").lower():
+        # Shorter write transactions reduce contention with API traffic on the same SQLite file.
+        ce = min(ce, int(os.getenv("DDI_CSV_COMMIT_EVERY_SQLITE", "500")))
     with open(file_path, "r", encoding="utf-8-sig", newline="") as f:
         return ingest_ddii_csv_stream(db, f, max_rows=max_rows, commit_every=ce)
