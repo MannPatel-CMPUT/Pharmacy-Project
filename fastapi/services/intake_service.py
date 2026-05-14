@@ -84,6 +84,7 @@ def create_intake(db: Session, data: IntakeCreate) -> Intake:
         patient_name=data.patient_name,
         patient_age=data.patient_age,
         patient_gender=data.patient_gender,
+        patient_phone=((data.patient_phone or "").strip() or None),
         patient_allergies=data.patient_allergies,
         medications=data.medications,
         current_medications=data.current_medications,

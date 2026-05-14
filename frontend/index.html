@@ -1121,6 +1121,11 @@
             <label for="patient-allergies">Allergies</label>
             <input id="patient-allergies" placeholder="e.g. penicillin (or NKDA)" data-testid="form-allergies" />
           </div>
+          <div class="field" style="margin-top:12px;">
+            <label for="patient-phone">Patient mobile (optional)</label>
+            <input id="patient-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+1 555 123 4567 — for WhatsApp pickup link" data-testid="form-patient-phone" />
+            <span class="hint" style="display:block; margin-top:6px; font-size:0.82rem; color:var(--text-muted);">10-digit US/Canada numbers get +1 automatically. Others: include country code (digits only after +).</span>
+          </div>
 
           <div class="field">
             <label for="medications">New medications</label>
@@ -1412,6 +1417,28 @@
       const subj = encodeURIComponent(`Prescription ready for pickup — order #${intakeId}`);
       const body = encodeURIComponent(pickupReadyMessage(intakeId, patientName));
       window.location.href = `mailto:?subject=${subj}&body=${body}`;
+    }
+
+    /** E.164 digits only for wa.me (no +). 10-digit NA numbers default to country code 1. */
+    function digitsForWhatsApp(phoneRaw) {
+      const d = String(phoneRaw || '').replace(/\D/g, '');
+      if (!d) return '';
+      if (d.length === 10) return '1' + d;
+      return d;
+    }
+    function openPickupWhatsApp(intakeId, patientName, patientPhone) {
+      const n = digitsForWhatsApp(patientPhone);
+      if (n.length < 10) {
+        toast({
+          title: 'Add patient mobile',
+          message: 'Save a phone number on the intake (new intakes: Patient mobile field). Use country code for numbers outside +1.',
+          type: 'warning',
+        });
+        return;
+      }
+      const text = encodeURIComponent(pickupReadyMessage(intakeId, patientName));
+      const url = `https://wa.me/${n}?text=${text}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
     }
 
     /* ============ Patient context (notes) ============ */
@@ -1782,8 +1809,9 @@
           ${intake.pickup_ready ? `
             <div class="pickup-callout">
               <div class="pickup-head"><i data-lucide="package-check"></i>Ready for patient pickup</div>
-              <div class="pickup-msg">Notify the patient that their prescription is ready. Use desktop alert, copy the message, or open SMS / email.</div>
+              <div class="pickup-msg">Notify the patient that their prescription is ready. WhatsApp opens with the message prefilled (you tap Send — no API cost). Or use desktop alert, copy, SMS, or email.</div>
               <div class="pickup-actions">
+                <button type="button" class="btn sm" onclick="openPickupWhatsApp(${intake.id}, ${JSON.stringify(intake.patient_name || '')}, ${JSON.stringify(intake.patient_phone || '')})" data-testid="pickup-whatsapp-${intake.id}"><i data-lucide="smartphone"></i>WhatsApp</button>
                 <button type="button" class="btn sm" onclick="notifyPickupBrowser(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-desktop-${intake.id}"><i data-lucide="bell-ring"></i>Desktop alert</button>
                 <button type="button" class="btn sm" onclick="copyPickupMessage(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-copy-${intake.id}"><i data-lucide="clipboard-copy"></i>Copy</button>
                 <button type="button" class="btn sm" onclick="openPickupSms(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-sms-${intake.id}"><i data-lucide="message-square"></i>SMS</button>
@@ -1793,7 +1821,7 @@
 
           <dl class="data-row">
             <dt>Patient</dt>
-            <dd>Age ${esc(fmt(intake.patient_age))}${intake.patient_gender ? ` · ${esc(intake.patient_gender.charAt(0).toUpperCase() + intake.patient_gender.slice(1))}` : ''} · Allergies: ${esc(fmt(intake.patient_allergies))}</dd>
+            <dd>Age ${esc(fmt(intake.patient_age))}${intake.patient_gender ? ` · ${esc(intake.patient_gender.charAt(0).toUpperCase() + intake.patient_gender.slice(1))}` : ''}${intake.patient_phone ? ` · ${esc(intake.patient_phone)}` : ''} · Allergies: ${esc(fmt(intake.patient_allergies))}</dd>
             <dt>Assigned</dt>
             <dd class="${intake.assigned_to ? '' : 'muted'}">${intake.assigned_to ? esc(intake.assigned_to) : 'Unassigned'}</dd>
             <dt>New meds</dt>
@@ -2111,6 +2139,7 @@
         patient_name: document.getElementById('patient-name').value,
         patient_age: document.getElementById('patient-age').value ? parseInt(document.getElementById('patient-age').value) : null,
         patient_gender: document.getElementById('patient-gender').value || null,
+        patient_phone: (document.getElementById('patient-phone').value || '').trim() || null,
         patient_allergies: document.getElementById('patient-allergies').value || null,
         medications: document.getElementById('medications').value,
         current_medications: document.getElementById('current-medications').value || null,

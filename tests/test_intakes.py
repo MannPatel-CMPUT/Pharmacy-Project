@@ -73,6 +73,14 @@ def test_create_intake_returns_201():
     assert data["patient_name"] == "Test Patient"
     assert data["status"] == "new"
     assert "id" in data
+    assert data.get("patient_phone") is None
+
+
+def test_create_intake_optional_patient_phone():
+    payload = {**SAMPLE_INTAKE, "patient_phone": "(555) 987-1234"}
+    r = client.post("/intakes", json=payload)
+    assert r.status_code == 201
+    assert r.json()["patient_phone"] == "(555) 987-1234"
 
 
 def test_create_intake_missing_patient_name_returns_422():

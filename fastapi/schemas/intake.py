@@ -18,6 +18,11 @@ class IntakeCreate(BaseModel):
     patient_name: str = Field(..., min_length=1, max_length=100)
     patient_age: Optional[int] = Field(None, ge=0, le=150)
     patient_gender: Optional[str] = Field(None, max_length=32)
+    patient_phone: Optional[str] = Field(
+        None,
+        max_length=40,
+        description="Mobile for pickup WhatsApp link; include country code outside +1.",
+    )
     patient_allergies: Optional[str] = Field(None, max_length=500)
     medications: str = Field(..., min_length=1)
     current_medications: Optional[str] = None
@@ -31,6 +36,7 @@ class IntakeOut(BaseModel):
     patient_name: str
     patient_age: Optional[int] = None
     patient_gender: Optional[str] = None
+    patient_phone: Optional[str] = None
     patient_allergies: Optional[str] = None
     medications: str
     current_medications: Optional[str] = None
@@ -66,6 +72,7 @@ class EvaluateIntakeRequest(BaseModel):
     patient_name: str = Field(..., min_length=1, max_length=100)
     patient_age: Optional[int] = Field(None, ge=0, le=150)
     patient_gender: Optional[str] = Field(None, max_length=32)
+    patient_phone: Optional[str] = Field(None, max_length=40)
     patient_allergies: Optional[str] = Field(None, max_length=500)
     medications: str = Field(..., min_length=1)
     current_medications: Optional[str] = None

@@ -25,6 +25,7 @@ class Intake(Base):
     patient_name = Column(String, index=True)
     patient_age = Column(Integer, nullable=True)
     patient_gender = Column(String, nullable=True)
+    patient_phone = Column(String, nullable=True)
     patient_allergies = Column(Text, nullable=True)
     medications = Column(Text)
     current_medications = Column(Text, nullable=True)
@@ -244,6 +245,8 @@ def _run_lightweight_migrations() -> None:
             }
             if "patient_gender" not in intakes_cols:
                 conn.execute(text("ALTER TABLE intakes ADD COLUMN patient_gender TEXT"))
+            if "patient_phone" not in intakes_cols:
+                conn.execute(text("ALTER TABLE intakes ADD COLUMN patient_phone TEXT"))
 
             existing = {
                 row[1]
