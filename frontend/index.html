@@ -658,6 +658,11 @@
     .pickup-callout .pickup-actions {
       display: flex; gap: 6px; flex-wrap: wrap;
     }
+    .pickup-callout .pickup-actions a.btn {
+      text-decoration: none;
+      color: inherit;
+      box-sizing: border-box;
+    }
 
     /* Section blocks */
     .ix-section {
@@ -1426,19 +1431,30 @@
       if (d.length === 10) return '1' + d;
       return d;
     }
-    function openPickupWhatsApp(intakeId, patientName, patientPhone) {
-      const n = digitsForWhatsApp(patientPhone);
-      if (n.length < 10) {
-        toast({
-          title: 'Add patient mobile',
-          message: 'Save a phone number on the intake (new intakes: Patient mobile field). Use country code for numbers outside +1.',
-          type: 'warning',
-        });
-        return;
-      }
-      const text = encodeURIComponent(pickupReadyMessage(intakeId, patientName));
-      const url = `https://wa.me/${n}?text=${text}`;
-      window.open(url, '_blank', 'noopener,noreferrer');
+    function bindPickupNotifyDelegation(root) {
+      if (!root || root.dataset.pickupDelegateBound) return;
+      root.dataset.pickupDelegateBound = '1';
+      root.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-pickup-action]');
+        if (!btn || !root.contains(btn)) return;
+        const action = btn.getAttribute('data-pickup-action');
+        const id = parseInt(btn.getAttribute('data-intake-id'), 10);
+        const patientName = btn.getAttribute('data-patient-name') || '';
+        if (Number.isNaN(id)) return;
+        if (action === 'browser') {
+          e.preventDefault();
+          notifyPickupBrowser(id, patientName);
+        } else if (action === 'copy') {
+          e.preventDefault();
+          copyPickupMessage(id, patientName);
+        } else if (action === 'sms') {
+          e.preventDefault();
+          openPickupSms(id, patientName);
+        } else if (action === 'email') {
+          e.preventDefault();
+          openPickupEmail(id, patientName);
+        }
+      });
     }
 
     /* ============ Patient context (notes) ============ */
@@ -1788,6 +1804,10 @@
 
       const stageDisplay = esc((intake.stage_display || intake.status || '').replace('_', ' '));
 
+      const waNum = digitsForWhatsApp(intake.patient_phone || '');
+      const waMsgText = pickupReadyMessage(intake.id, intake.patient_name || '');
+      const waUrl = waNum.length >= 10 ? `https://wa.me/${waNum}?text=${encodeURIComponent(waMsgText)}` : '';
+
       return `
         <article class="intake-card" data-intake-id="${intake.id}" data-testid="intake-card-${intake.id}">
           <div class="row-between">
@@ -1811,11 +1831,14 @@
               <div class="pickup-head"><i data-lucide="package-check"></i>Ready for patient pickup</div>
               <div class="pickup-msg">Notify the patient that their prescription is ready. WhatsApp opens with the message prefilled (you tap Send — no API cost). Or use desktop alert, copy, SMS, or email.</div>
               <div class="pickup-actions">
-                <button type="button" class="btn sm" onclick="openPickupWhatsApp(${intake.id}, ${JSON.stringify(intake.patient_name || '')}, ${JSON.stringify(intake.patient_phone || '')})" data-testid="pickup-whatsapp-${intake.id}"><i data-lucide="smartphone"></i>WhatsApp</button>
-                <button type="button" class="btn sm" onclick="notifyPickupBrowser(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-desktop-${intake.id}"><i data-lucide="bell-ring"></i>Desktop alert</button>
-                <button type="button" class="btn sm" onclick="copyPickupMessage(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-copy-${intake.id}"><i data-lucide="clipboard-copy"></i>Copy</button>
-                <button type="button" class="btn sm" onclick="openPickupSms(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-sms-${intake.id}"><i data-lucide="message-square"></i>SMS</button>
-                <button type="button" class="btn sm" onclick="openPickupEmail(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-email-${intake.id}"><i data-lucide="mail"></i>Email</button>
+                ${waUrl
+                  ? `<a class="btn sm" href="${esc(waUrl)}" target="_blank" rel="noopener noreferrer" data-testid="pickup-whatsapp-${intake.id}"><i data-lucide="smartphone"></i>WhatsApp</a>`
+                  : `<button type="button" class="btn sm" disabled title="Add a patient mobile number (10+ digits) for WhatsApp" data-testid="pickup-whatsapp-${intake.id}"><i data-lucide="smartphone"></i>WhatsApp</button>`
+                }
+                <button type="button" class="btn sm" data-pickup-action="browser" data-intake-id="${intake.id}" data-patient-name="${esc(intake.patient_name || '')}" data-testid="pickup-desktop-${intake.id}"><i data-lucide="bell-ring"></i>Desktop alert</button>
+                <button type="button" class="btn sm" data-pickup-action="copy" data-intake-id="${intake.id}" data-patient-name="${esc(intake.patient_name || '')}" data-testid="pickup-copy-${intake.id}"><i data-lucide="clipboard-copy"></i>Copy</button>
+                <button type="button" class="btn sm" data-pickup-action="sms" data-intake-id="${intake.id}" data-patient-name="${esc(intake.patient_name || '')}" data-testid="pickup-sms-${intake.id}"><i data-lucide="message-square"></i>SMS</button>
+                <button type="button" class="btn sm" data-pickup-action="email" data-intake-id="${intake.id}" data-patient-name="${esc(intake.patient_name || '')}" data-testid="pickup-email-${intake.id}"><i data-lucide="mail"></i>Email</button>
               </div>
             </div>` : ''}
 
@@ -2228,6 +2251,8 @@
     /* ============ Init ============ */
     document.getElementById('logout-btn').addEventListener('click', logoutSession);
     document.getElementById('patient-search-input').addEventListener('input', schedulePatientSearch);
+    bindPickupNotifyDelegation(document.getElementById('intake-list'));
+    bindPickupNotifyDelegation(document.getElementById('patient-search-results'));
     document.getElementById('clear-search-btn').addEventListener('click', () => {
       const i = document.getElementById('patient-search-input');
       i.value = '';
