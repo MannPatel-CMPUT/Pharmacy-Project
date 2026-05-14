@@ -21,7 +21,7 @@ The FastAPI app exposes:
 - `POST /api/auth/signup`, `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me`
 - `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`
 
-User records live in **`fastapi/data/portal_users.json`**; reset tokens in **`fastapi/data/password_resets.json`** (demo: forgot-password returns a `reset_url` in JSON — no email is sent).
+User records live in **`fastapi/data/portal_users.json`**; reset tokens in **`fastapi/data/password_resets.json`** (demo: forgot-password returns a `reset_url` in JSON — no email is sent). Both paths are **gitignored**; create them locally as `{"users":[]}` / `{"resets":[]}` if missing (the server creates them on first write).
 
 ## Optional: standalone Node dev server
 
