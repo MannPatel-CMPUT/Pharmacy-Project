@@ -37,7 +37,7 @@ cp .env.example .env
 
 Default `.env` values work locally with SQLite.
 
-**Bundled interaction CSV:** `fastapi/data/db_drug_interactions.csv` is the full export (~21MB). The first time the API starts with an **empty** `pharmacy.db`, ingestion can take **several minutes** (normal). Use a **persistent disk** for `DATABASE_URL` on Render so you do not re-ingest on every redeploy unless you wipe the volume.
+**Bundled interaction CSV:** `fastapi/data/db_drug_interactions.csv` is the full export (~21MB). The first time the API starts with an **empty** `pharmacy.db`, ingestion can take **several minutes** (normal); it runs **after** the process binds to **`PORT`**, so Render’s health check can succeed while the load continues. The Docker image uses **`${PORT:-8000}`** (Render injects `PORT`, e.g. `10000`). Use a **persistent disk** for `DATABASE_URL` on Render so you do not re-ingest on every redeploy unless you wipe the volume.
 
 ### 3) Build PairWise Rx shell (splash, login, sign up)
 

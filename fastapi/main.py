@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -16,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from database import init_db
+from database import init_db_interaction_sources, init_db_schema
 from routers.auth import router as auth_router
 from routers.config import router as config_router
 from routers.intakes import router as intakes_router
@@ -66,10 +67,20 @@ npm run build</code>
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        init_db()
-        print("✓ Database initialized")
+        init_db_schema()
+        print("✓ Database initialized (schema)")
     except Exception as e:
         print(f"⚠ Database initialization warning: {e}")
+
+    async def _load_interactions_bg() -> None:
+        try:
+            await asyncio.to_thread(init_db_interaction_sources)
+            print("✓ Drug interaction data load finished (CSV / seed)")
+        except Exception as e:
+            print(f"⚠ Drug interaction load failed: {e}")
+
+    interaction_task = asyncio.create_task(_load_interactions_bg())
+
     if _PORTAL_OK:
         print(f"✓ PairWise Rx portal UI enabled ({_PORTAL_DIST})")
     else:
@@ -78,6 +89,10 @@ async def lifespan(app: FastAPI):
             print("  (index.html exists but assets/ is missing — run a full npm run build in portal/)")
         print("  Run: cd portal && npm install && npm run build")
     yield
+    try:
+        await interaction_task
+    except Exception:
+        pass
 
 
 app = FastAPI(

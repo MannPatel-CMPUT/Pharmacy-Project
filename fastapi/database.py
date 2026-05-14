@@ -243,11 +243,22 @@ def _load_seed_interactions_json() -> None:
         db.close()
 
 
-def init_db():
+def init_db_schema() -> None:
+    """Create tables and run lightweight migrations (fast; safe before accepting traffic)."""
     Base.metadata.create_all(bind=engine)
     _run_lightweight_migrations()
+
+
+def init_db_interaction_sources() -> None:
+    """Load large CSV + JSON seed into ``drug_interactions`` (can take many minutes)."""
     _load_ddii_csv_if_configured()
     _load_seed_interactions_json()
+
+
+def init_db() -> None:
+    """Full init: schema plus interaction sources (used by scripts; servers may defer the latter)."""
+    init_db_schema()
+    init_db_interaction_sources()
 
 
 def _run_lightweight_migrations() -> None:
