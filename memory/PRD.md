@@ -56,8 +56,13 @@ Existing app: **Pharmacy Workflow Automation** — FastAPI + vanilla HTML dashbo
   - `/app/frontend/package.json` shim → launches Node portal with shared secret.
 
 ## Testing status
-- 34/34 backend pytest tests pass.
+- 54/54 backend pytest tests pass (including 18 new ddi_severity_classifier tests).
 - testing_agent_v3 iteration 1: 100% on critical flows; 0 critical bugs; 2 minor follow-ups addressed (forgot-password TLD validator relaxed; search-view de-duplicated).
+
+## DDII risk classifier rebuild (Jan 2026)
+- Problem: every drug pair in `fastapi/data/db_drug_interactions.csv` was labelled either `moderate` (184,616) or `major` (6,925) — clinically high-risk patterns (QT prolongation, serotonergic, anticoagulant, hypoglycemic, hypokalemic, AV block, arrhythmogenic) all bucketed as `moderate`, and protective pairs ("may decrease the cardiotoxic activities of …") were also `moderate`.
+- Fix in `fastapi/services/ddi_severity_classifier.py`: keyword rules now recognise (a) high-risk activity increase → **major**, (b) "decrease the <toxic/sedative/CNS depressant/anticoagulant/serotonergic/…> activities" → **minor** (protective), (c) explicit "contraindicated / should not be used / must not" → **contraindicated**, (d) PK shifts (metabolism / serum concentration / efficacy) → **moderate**.
+- New distribution: `major 22,400 / moderate 167,302 / minor 1,839`. CSV regenerated with `scripts/add_ddii_risk_severity_column.py`; DB re-ingested at startup (manifest fingerprint changed).
 
 ## Prioritized backlog / Future
 - **P1**: Add `data-testid='audit-{id}'` was added in iteration 1 review; harden CSV ingest path for very large interaction datasets (current code already batches).
