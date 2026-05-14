@@ -1,5 +1,5 @@
 from schemas.intake_actions import StatusUpdate, AssignUser
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from schemas.intake import (
@@ -7,8 +7,19 @@ from schemas.intake import (
     CounselingPointsUpdate, PharmacistNotesUpdate, DispenseUpdate,
     EvaluateIntakeRequest, EvaluateIntakeResponse,
 )
-from services import intake_service
+from services import intake_service, auth_service
 from database import get_db
+
+
+def _current_username(request: Request) -> Optional[str]:
+    """Best-effort: extract logged-in username from the session cookie."""
+    raw = request.cookies.get(auth_service.COOKIE_NAME)
+    if not raw:
+        return None
+    payload = auth_service.decode_token(raw)
+    if not payload:
+        return None
+    return str(payload.get("u") or "") or None
 
 router = APIRouter(prefix="/intakes", tags=["intakes"])
 
@@ -75,9 +86,11 @@ def cancel_intake(intake_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{intake_id}/status", response_model=IntakeOut)
-def change_status(intake_id: int, payload: StatusUpdate, db: Session = Depends(get_db)):
+def change_status(intake_id: int, payload: StatusUpdate, request: Request, db: Session = Depends(get_db)):
     try:
-        intake = intake_service.update_status(db, intake_id, payload.status)
+        intake = intake_service.update_status(
+            db, intake_id, payload.status, changed_by=_current_username(request)
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     if not intake:
@@ -118,8 +131,8 @@ def update_pharmacist_notes(intake_id: int, payload: PharmacistNotesUpdate, db: 
 
 
 @router.post("/{intake_id}/dispense", response_model=IntakeOut)
-def dispense_medication(intake_id: int, payload: DispenseUpdate, db: Session = Depends(get_db)):
-    intake = intake_service.dispense_medication(db, intake_id, payload.dispensed)
+def dispense_medication(intake_id: int, payload: DispenseUpdate, request: Request, db: Session = Depends(get_db)):
+    intake = intake_service.dispense_medication(db, intake_id, payload.dispensed, changed_by=_current_username(request))
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
     return intake_service.enrich_intake_out(intake)

@@ -21,6 +21,24 @@ _SEVERITY_TO_RISK = {
     "unknown": "Unknown",
 }
 
+_SEVERITY_RANK = {
+    "contraindicated": 0,
+    "major": 1,
+    "moderate": 2,
+    "minor": 3,
+    "unknown": 4,
+}
+
+
+def _sort_interactions_by_severity(interactions: list) -> list:
+    """Sort interactions by clinical severity (most dangerous first)."""
+    if not interactions:
+        return interactions
+    return sorted(
+        interactions,
+        key=lambda ix: _SEVERITY_RANK.get((ix.get("severity") or "unknown").lower(), 99),
+    )
+
 _SEVERITY_TO_RECOMMENDATION = {
     "contraindicated": "Avoid this combination. Seek immediate medical advice.",
     "major": "Avoid unless specifically directed by your doctor. Requires close monitoring.",
@@ -59,6 +77,7 @@ def create_intake(db: Session, data: IntakeCreate) -> Intake:
         patient_age=data.patient_age,
         patient_gender=data.patient_gender,
     )
+    interactions = _sort_interactions_by_severity(interactions)
     interactions_json = json.dumps(interactions) if interactions else None
 
     intake = Intake(
@@ -179,7 +198,7 @@ def update_pharmacist_notes(db: Session, intake_id: int, pharmacist_notes: str) 
     return intake
 
 
-def dispense_medication(db: Session, intake_id: int, dispensed: str) -> Optional[Intake]:
+def dispense_medication(db: Session, intake_id: int, dispensed: str, changed_by: Optional[str] = None) -> Optional[Intake]:
     intake = get_intake_by_id(db, intake_id)
     if not intake:
         return None
@@ -191,7 +210,7 @@ def dispense_medication(db: Session, intake_id: int, dispensed: str) -> Optional
             intake.status = "dispensed"
             db.commit()
             db.refresh(intake)
-            _record_status_history(db, intake_id, from_status=old_status, to_status="dispensed")
+            _record_status_history(db, intake_id, from_status=old_status, to_status="dispensed", changed_by=changed_by)
             return intake
     intake.updated_at = datetime.now(timezone.utc)
     db.commit()
@@ -213,6 +232,7 @@ def _recompute_intake_interactions(db: Session, intake: Intake) -> dict:
         patient_age=intake.patient_age,
         patient_gender=intake.patient_gender,
     )
+    interactions = _sort_interactions_by_severity(interactions)
     intake.drug_interactions = json.dumps(interactions) if interactions else None
     counseling_result = generate_counseling(
         db,
@@ -256,6 +276,7 @@ def evaluate_intake_interactions(db: Session, data: EvaluateIntakeRequest) -> di
             patient_age=data.patient_age,
             patient_gender=data.patient_gender,
         )
+        raw_interactions = _sort_interactions_by_severity(raw_interactions)
     except Exception:
         logger.exception("evaluate_intake: interaction detection failed")
         return {

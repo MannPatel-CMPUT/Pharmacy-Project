@@ -3,463 +3,1113 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Pharmacy Workflow Automation</title>
+  <meta name="theme-color" content="#0ea5e9" />
+  <title>RxFlow — Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #f3f5fb;
-      --panel: #ffffff;
-      --text: #111827;
-      --muted: #6b7280;
-      --line: #e5e7eb;
-      --primary: #2563eb;
-      --success: #16a34a;
+      /* Workspace (light) palette */
+      --bg-app: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-subtle: #f1f5f9;
+      --bg-hover: #f8fafc;
+
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+
+      --text: #0f172a;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --text-dim: #94a3b8;
+
+      --accent: #0ea5e9;
+      --accent-2: #0284c7;
+      --accent-soft: #e0f2fe;
+      --accent-text: #075985;
+
+      --success: #10b981;
+      --success-bg: #ecfdf5;
+      --success-border: #6ee7b7;
+      --success-text: #065f46;
+
       --warning: #d97706;
+      --warning-bg: #fffbeb;
+      --warning-border: #fcd34d;
+      --warning-text: #92400e;
+
       --danger: #dc2626;
-      --major-bg: #fee2e2;
-      --major-text: #991b1b;
-      --moderate-bg: #ffedd5;
-      --moderate-text: #9a3412;
-      --minor-bg: #ecfeff;
-      --minor-text: #155e75;
+      --danger-bg: #fef2f2;
+      --danger-border: #fca5a5;
+      --danger-text: #991b1b;
+
+      /* Severity tokens */
+      --sev-contraindicated-bg: #fef2f2;
+      --sev-contraindicated-text: #991b1b;
+      --sev-contraindicated-border: #fca5a5;
+      --sev-major-bg: #fff7ed;
+      --sev-major-text: #9a3412;
+      --sev-major-border: #fdba74;
+      --sev-moderate-bg: #fffbeb;
+      --sev-moderate-text: #b45309;
+      --sev-moderate-border: #fcd34d;
+      --sev-minor-bg: #f0f9ff;
+      --sev-minor-text: #075985;
+      --sev-minor-border: #7dd3fc;
+      --sev-unknown-bg: #f1f5f9;
+      --sev-unknown-text: #334155;
+      --sev-unknown-border: #cbd5e1;
+
+      --radius-sm: 6px;
+      --radius: 8px;
+      --radius-lg: 12px;
+
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 1px rgba(15, 23, 42, 0.03);
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.05), 0 4px 12px -4px rgba(15, 23, 42, 0.05);
+      --shadow-lg: 0 10px 30px -10px rgba(15, 23, 42, 0.18);
+
+      --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+      --font-display: "Outfit", "IBM Plex Sans", sans-serif;
+      --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
     }
 
     * { box-sizing: border-box; }
-
+    html, body { height: 100%; }
     body {
       margin: 0;
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: var(--bg);
+      font-family: var(--font-sans);
+      background: var(--bg-app);
       color: var(--text);
-      padding: 18px;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+      line-height: 1.5;
     }
 
-    .container { max-width: 1400px; margin: 0 auto; }
+    /* Hide visually but keep accessible */
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 
-    .panel {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 16px;
-      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+    /* ====== Header ====== */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: saturate(160%) blur(8px);
+      -webkit-backdrop-filter: saturate(160%) blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .app-header-inner {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 14px 24px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 22px;
+      align-items: center;
+    }
+    .brand-cluster { display: flex; align-items: center; gap: 11px; }
+    .brand-mark {
+      width: 34px; height: 34px; border-radius: 9px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid; place-items: center; color: #fff;
+      box-shadow: 0 6px 14px -6px rgba(14, 165, 233, 0.55);
+    }
+    .brand-mark svg { width: 18px; height: 18px; }
+    .brand-name {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1.18rem;
+      letter-spacing: -0.02em;
+      color: var(--text);
+    }
+    .brand-name em { font-style: normal; color: var(--accent-2); font-weight: 500; }
+    .brand-env {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--text-dim);
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-subtle);
     }
 
-    header.panel { margin-bottom: 14px; }
-    .header-title-row {
+    .global-search {
+      position: relative;
+      max-width: 520px;
+      width: 100%;
+      justify-self: center;
+    }
+    .global-search svg.lead {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      width: 16px; height: 16px; color: var(--text-muted); pointer-events: none;
+    }
+    .global-search input {
+      width: 100%;
+      padding: 10px 12px 10px 38px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-strong);
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      font-size: 0.94rem;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .global-search input::placeholder { color: var(--text-dim); }
+    .global-search input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    .global-search kbd {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      color: var(--text-muted);
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+    }
+
+    .user-cluster { display: flex; align-items: center; gap: 10px; }
+    .user-chip {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 12px 6px 6px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-subtle);
+      font-size: 0.86rem;
+      color: var(--text-secondary);
+    }
+    .user-chip .avatar {
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid; place-items: center;
+      color: #fff;
+      font-size: 0.74rem;
+      font-weight: 700;
+      font-family: var(--font-display);
+    }
+
+    .btn {
+      border: 1px solid var(--border-strong);
+      background: #fff;
+      color: var(--text-secondary);
+      padding: 8px 13px;
+      border-radius: var(--radius);
+      font: inherit;
+      font-size: 0.86rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.08s;
+    }
+    .btn:hover { background: var(--bg-subtle); border-color: var(--text-dim); }
+    .btn:active { transform: translateY(1px); }
+    .btn svg { width: 14px; height: 14px; }
+
+    .btn.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); }
+
+    .btn.success {
+      background: var(--success);
+      color: #fff;
+      border-color: var(--success);
+    }
+    .btn.success:hover { filter: brightness(1.05); }
+
+    .btn.warning {
+      background: #fff;
+      color: var(--warning-text);
+      border-color: var(--warning-border);
+    }
+    .btn.warning:hover { background: var(--warning-bg); }
+
+    .btn.danger {
+      background: #fff;
+      color: var(--danger-text);
+      border-color: var(--danger-border);
+    }
+    .btn.danger:hover { background: var(--danger-bg); }
+
+    .btn.ghost {
+      background: transparent;
+      border-color: transparent;
+      color: var(--text-secondary);
+    }
+    .btn.ghost:hover { background: var(--bg-subtle); }
+
+    .btn.sm { padding: 6px 10px; font-size: 0.8rem; }
+    .btn.xs { padding: 4px 8px; font-size: 0.75rem; }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+    /* ====== Layout ====== */
+    .app-main {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 22px 24px 48px;
+    }
+
+    .page-title-row {
       display: flex;
       justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .page-title-row h1 {
+      font-family: var(--font-display);
+      font-size: 1.7rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin: 0 0 4px;
+      color: var(--text);
+    }
+    .page-title-row .page-subtitle {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      margin: 0;
+    }
+
+    /* Stats */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    @media (max-width: 980px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 520px) { .stats { grid-template-columns: 1fr; } }
+    .stat {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      display: flex;
       align-items: flex-start;
       gap: 12px;
-      flex-wrap: wrap;
-      margin-bottom: 4px;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .header-title-row h1 { margin: 0; flex: 1; min-width: 200px; font-size: 1.6rem; }
-    .btn-logout {
-      background: #4b5563;
+    .stat:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+    .stat .stat-icon {
+      width: 36px; height: 36px;
       flex-shrink: 0;
+      border-radius: 8px;
+      background: var(--accent-soft);
+      color: var(--accent-text);
+      display: grid; place-items: center;
     }
-    .btn-logout:hover { opacity: 0.92; }
+    .stat .stat-icon svg { width: 18px; height: 18px; }
+    .stat.warning .stat-icon { background: var(--warning-bg); color: var(--warning-text); }
+    .stat.success .stat-icon { background: var(--success-bg); color: var(--success-text); }
+    .stat.purple .stat-icon { background: #ede9fe; color: #5b21b6; }
+    .stat.neutral .stat-icon { background: var(--bg-subtle); color: var(--text-secondary); }
+    .stat-body { display: flex; flex-direction: column; min-width: 0; }
+    .stat .label {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .stat .value {
+      font-family: var(--font-display);
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.1;
+      margin-top: 2px;
+    }
+    .stat.skel .value, .stat.skel .label-skel {
+      background: var(--bg-subtle);
+      border-radius: 4px;
+      color: transparent;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .stat.skel .value { width: 48px; height: 22px; }
+    .stat.skel .label-skel { width: 80px; height: 11px; margin-top: 3px; }
 
-    h1 { margin: 0 0 6px; font-size: 1.6rem; }
-    .subtitle { color: var(--muted); margin-bottom: 10px; }
-    .hero-taglines {
-      margin: 0 0 12px;
-      padding: 0;
-      list-style: none;
-      font-size: .92rem;
-      color: #374151;
-      line-height: 1.55;
-    }
-    .hero-taglines li {
-      padding: 3px 0 3px 22px;
-      position: relative;
-    }
-    .hero-taglines li::before {
-      content: "";
-      position: absolute;
-      left: 6px;
-      top: 0.65em;
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--primary);
-      opacity: 0.75;
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.55; }
     }
 
-    .stats {
-      margin-top: 12px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-      gap: 10px;
+    /* Filter chips */
+    .filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 14px;
     }
-    .stat {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px;
-      background: #f9fafb;
+    .filter-bar .filter-label {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-muted);
+      margin-right: 4px;
     }
-    .stat .label { font-size: .8rem; color: var(--muted); }
-    .stat .value { font-size: 1.3rem; font-weight: 700; }
+    .chip {
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text-secondary);
+      padding: 5px 11px;
+      border-radius: 999px;
+      cursor: pointer;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 500;
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .chip:hover { background: var(--bg-subtle); border-color: var(--text-dim); }
+    .chip.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .chip .count {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+    .chip.active .count { color: rgba(255, 255, 255, 0.85); }
 
+    /* Layout grid */
     .layout {
       display: grid;
-      grid-template-columns: 420px 1fr;
-      gap: 14px;
+      grid-template-columns: 420px minmax(0, 1fr);
+      gap: 16px;
       align-items: start;
     }
-
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
     }
 
-    h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+    }
+    .panel h2 {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1.05rem;
+      margin: 0 0 14px;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .panel h2 svg { width: 16px; height: 16px; color: var(--accent-2); }
 
-    .grid-two {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
+    .panel-row {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; margin-bottom: 12px;
     }
 
-    .field { margin-bottom: 10px; }
+    /* Form */
+    .field { margin-bottom: 12px; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .field label {
       display: block;
-      font-size: .83rem;
-      color: #374151;
-      margin-bottom: 4px;
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-bottom: 6px;
     }
-
-    input, select, textarea {
+    .field input, .field select, .field textarea {
       width: 100%;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      padding: 9px 10px;
-      font-size: .92rem;
-      font-family: inherit;
+      padding: 9px 11px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      font: inherit;
+      font-size: 0.9rem;
       background: #fff;
+      color: var(--text);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field textarea { min-height: 76px; resize: vertical; }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+    }
+    .field .hint { margin-top: 5px; font-size: 0.78rem; color: var(--text-muted); line-height: 1.4; }
+    .field .hint code {
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      background: var(--bg-subtle);
+      padding: 1px 5px;
+      border-radius: 4px;
     }
 
-    textarea { min-height: 82px; resize: vertical; }
-    input:focus, select:focus, textarea:focus {
-      outline: 2px solid #bfdbfe;
-      border-color: #93c5fd;
+    .section-divider {
+      margin: 16px 0 14px;
+      border-top: 1px dashed var(--border);
+      padding-top: 14px;
     }
-
-    .btn {
-      border: none;
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-size: .86rem;
+    .section-divider h3 {
+      font-family: var(--font-display);
       font-weight: 600;
-      cursor: pointer;
-      color: #fff;
-      background: var(--primary);
+      font-size: 0.95rem;
+      margin: 0 0 10px;
+      color: var(--text);
+      letter-spacing: -0.01em;
     }
-    .btn:hover { opacity: .92; }
 
-    .btn.secondary { background: #4b5563; }
-    .btn.success { background: var(--success); }
-    .btn.warning { background: var(--warning); }
-    .btn.danger { background: var(--danger); }
-
+    /* Intake list */
     .intakes-column {
       display: flex;
       flex-direction: column;
-      gap: 0;
-      min-height: 0;
+      gap: 16px;
+      min-width: 0;
     }
     .intake-list {
       display: grid;
-      gap: 10px;
-      max-height: 58vh;
-      overflow: auto;
-      padding-right: 2px;
+      gap: 12px;
     }
-
-    .patient-search-section {
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid var(--line);
-    }
-    .patient-search-section h3 {
-      margin: 0 0 8px;
-      font-size: 1rem;
-      font-weight: 700;
-    }
-    .patient-search-section .hint {
-      font-size: 0.8rem;
-      color: var(--muted);
-      margin: 0 0 8px;
-      line-height: 1.45;
-    }
-    #patient-search-results {
-      margin-top: 10px;
-      display: grid;
-      gap: 10px;
-      max-height: 42vh;
-      overflow: auto;
-      padding-right: 2px;
-    }
-
     .intake-card {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 12px;
-      background: #fff;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .intake-card:hover {
+      border-color: var(--border-strong);
+      box-shadow: var(--shadow);
     }
 
     .row-between {
       display: flex;
       justify-content: space-between;
-      gap: 10px;
+      gap: 12px;
       align-items: center;
       flex-wrap: wrap;
     }
 
-    .muted { color: var(--muted); font-size: .84rem; }
-
-    .status-badge {
-      padding: 4px 10px;
-      border-radius: 999px;
-      font-size: .78rem;
-      font-weight: 700;
-      background: #eff6ff;
-      color: #1d4ed8;
-      border: 1px solid #bfdbfe;
+    .id-block { display: flex; flex-direction: column; min-width: 0; }
+    .id-block .id-line {
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      color: var(--text-dim);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .id-block .name {
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 1.06rem;
+      letter-spacing: -0.015em;
+      color: var(--text);
+    }
+    .id-block .meta {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 1px;
     }
 
-    .severity {
-      display: inline-block;
-      font-size: .74rem;
-      font-weight: 700;
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 9px;
       border-radius: 999px;
-      padding: 3px 8px;
-      margin-right: 6px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
       border: 1px solid transparent;
     }
-    .severity.contraindicated,
-    .severity.major { background: var(--major-bg); color: var(--major-text); border-color: #fecaca; }
-    .severity.moderate { background: var(--moderate-bg); color: var(--moderate-text); border-color: #fed7aa; }
-    .severity.minor,
-    .severity.unknown { background: var(--minor-bg); color: var(--minor-text); border-color: #a5f3fc; }
+    .badge svg { width: 12px; height: 12px; }
 
-    .section {
-      margin-top: 10px;
-      border-top: 1px dashed var(--line);
-      padding-top: 8px;
-    }
+    .badge.status { background: var(--accent-soft); color: var(--accent-text); border-color: #bae6fd; text-transform: capitalize; }
 
-    .pill {
-      display: inline-block;
-      border: 1px solid #d1d5db;
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: .74rem;
-      margin-right: 6px;
-      color: #374151;
-      background: #f9fafb;
-    }
-
-    .alert {
-      background: #fff1f2;
-      border: 1px solid #fecdd3;
-      border-left: 4px solid #e11d48;
-      color: #9f1239;
-      border-radius: 8px;
-      padding: 8px;
-      font-size: .84rem;
-      margin-top: 6px;
-    }
-
-    .mini-list {
-      margin: 6px 0 0;
-      padding-left: 16px;
-      font-size: .86rem;
-    }
-    .mini-list li { margin-bottom: 3px; }
-
-    .actions { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
-
-    .hint { font-size: .8rem; color: var(--muted); }
-
+    /* Risk badges */
     .risk-badge {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      padding: 4px 12px;
+      padding: 3px 10px;
       border-radius: 999px;
-      font-size: .82rem;
-      font-weight: 700;
-      letter-spacing: .02em;
-    }
-    .risk-none     { background: #dcfce7; color: #14532d; }
-    .risk-low      { background: #fef9c3; color: #713f12; }
-    .risk-moderate { background: #ffedd5; color: #7c2d12; }
-    .risk-high     { background: #fee2e2; color: #7f1d1d; }
-    .risk-veryhigh { background: #500724; color: #fff; }
-    .risk-unknown  { background: #f3f4f6; color: #374151; }
-
-    .warn-box {
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: .85rem;
-      margin-top: 6px;
-      line-height: 1.55;
-    }
-    .warn-box.allergy  { background: #fee2e2; border: 1px solid #fca5a5; }
-    .warn-box.lifestyle { background: #fffbeb; border: 1px solid #fde68a; }
-    .warn-box.none     { background: #f0fdf4; border: 1px solid #86efac; color: #14532d; }
-
-    .ix-card {
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-top: 8px;
-    }
-
-    .eval-panel {
-      margin-top: 16px;
-      border-top: 2px solid var(--line);
-      padding-top: 14px;
-    }
-
-    .workflow-track {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px 8px;
-      align-items: center;
-      font-size: .78rem;
-      margin-top: 8px;
-      padding: 8px 10px;
-      background: #f8fafc;
-      border-radius: 8px;
-      border: 1px solid var(--line);
-    }
-    .workflow-track .step {
-      padding: 2px 8px;
-      border-radius: 6px;
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      color: var(--muted);
-    }
-    .workflow-track .step.on {
-      background: #dbeafe;
-      border-color: #93c5fd;
-      color: #1e40af;
-      font-weight: 700;
-    }
-    .workflow-track .step.pickup {
-      background: #dcfce7;
-      border-color: #86efac;
-      color: #14532d;
-      font-weight: 700;
-    }
-    .pickup-banner {
-      margin-top: 8px;
-      padding: 8px 10px;
-      border-radius: 8px;
-      background: linear-gradient(90deg, #dcfce7, #d1fae5);
-      border: 1px solid #86efac;
-      font-size: .86rem;
+      font-size: 0.74rem;
       font-weight: 600;
-      color: #14532d;
+      letter-spacing: 0.02em;
+      border: 1px solid;
     }
-    .pickup-notify-box {
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid #86efac;
-      background: #f0fdf4;
+    .risk-badge svg { width: 12px; height: 12px; }
+    .risk-none     { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; }
+    .risk-low      { background: #fef9c3; color: #713f12; border-color: #fde68a; }
+    .risk-moderate { background: #ffedd5; color: #7c2d12; border-color: #fed7aa; }
+    .risk-high     { background: #fee2e2; color: #7f1d1d; border-color: #fca5a5; }
+    .risk-veryhigh { background: #450a0a; color: #fee2e2; border-color: #7f1d1d; }
+    .risk-unknown  { background: var(--bg-subtle); color: var(--text-secondary); border-color: var(--border); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.72rem;
+      color: var(--text-secondary);
+      background: var(--bg-subtle);
     }
-    .pickup-notify-box .label-row {
-      font-size: .78rem;
-      font-weight: 700;
-      color: #14532d;
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: .04em;
-    }
-    .pickup-notify-actions {
+    .pill svg { width: 11px; height: 11px; }
+
+    /* Workflow stepper */
+    .stepper {
       display: flex;
       flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 6px;
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: var(--bg-subtle);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    .stepper .step {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.02em;
+      padding: 3px 9px;
+      border-radius: 5px;
+      background: #fff;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      text-transform: uppercase;
+    }
+    .stepper .step.done {
+      background: #f1f5f9;
+      color: var(--text-secondary);
+      border-color: var(--border);
+    }
+    .stepper .step.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .stepper .step.pickup {
+      background: var(--success);
+      color: #fff;
+      border-color: var(--success);
+    }
+    .stepper .sep {
+      color: var(--text-dim);
+      font-size: 0.74rem;
+      line-height: 1;
+    }
+    .workflow-hint {
+      margin-top: 6px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex; gap: 6px; align-items: center;
+    }
+    .workflow-hint svg { width: 12px; height: 12px; color: var(--accent-2); }
+
+    /* Pickup ready callout */
+    .pickup-callout {
+      margin-top: 12px;
+      border: 1px solid var(--success-border);
+      background: linear-gradient(180deg, var(--success-bg), #fff);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+    }
+    .pickup-callout .pickup-head {
+      display: flex; align-items: center; gap: 8px;
+      font-weight: 600;
+      color: var(--success-text);
+      margin-bottom: 6px;
+    }
+    .pickup-callout .pickup-head svg { width: 16px; height: 16px; }
+    .pickup-callout .pickup-msg {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    .pickup-callout .pickup-actions {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+
+    /* Section blocks */
+    .ix-section {
+      margin-top: 14px;
+    }
+    .section-head {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px;
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.86rem;
+      color: var(--text);
+      letter-spacing: -0.005em;
+    }
+    .section-head .count-pill {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      background: var(--bg-subtle);
+      padding: 1px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      letter-spacing: 0.04em;
+    }
+    .section-head svg { width: 14px; height: 14px; color: var(--accent-2); }
+
+    .empty-callout {
+      display: flex;
       gap: 8px;
       align-items: center;
+      padding: 10px 12px;
+      background: var(--success-bg);
+      border: 1px solid var(--success-border);
+      border-radius: var(--radius);
+      font-size: 0.86rem;
+      color: var(--success-text);
     }
-    .pickup-notify-actions .btn { font-size: .78rem; padding: 7px 10px; text-decoration: none; display: inline-block; }
+    .empty-callout svg { width: 16px; height: 16px; }
 
+    .ix-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      background: var(--bg-card);
+      border-left-width: 4px;
+    }
+    .ix-card.sev-contraindicated { border-left-color: var(--sev-contraindicated-text); }
+    .ix-card.sev-major { border-left-color: var(--sev-major-text); }
+    .ix-card.sev-moderate { border-left-color: var(--sev-moderate-text); }
+    .ix-card.sev-minor { border-left-color: var(--sev-minor-text); }
+    .ix-card.sev-unknown { border-left-color: var(--sev-unknown-text); }
+
+    .ix-head {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .sev-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      font-weight: 600;
+      border: 1px solid;
+    }
+    .sev-tag svg { width: 11px; height: 11px; }
+    .sev-contraindicated { background: var(--sev-contraindicated-bg); color: var(--sev-contraindicated-text); border-color: var(--sev-contraindicated-border); }
+    .sev-major { background: var(--sev-major-bg); color: var(--sev-major-text); border-color: var(--sev-major-border); }
+    .sev-moderate { background: var(--sev-moderate-bg); color: var(--sev-moderate-text); border-color: var(--sev-moderate-border); }
+    .sev-minor { background: var(--sev-minor-bg); color: var(--sev-minor-text); border-color: var(--sev-minor-border); }
+    .sev-unknown { background: var(--sev-unknown-bg); color: var(--sev-unknown-text); border-color: var(--sev-unknown-border); }
+
+    .ix-pair {
+      font-weight: 600;
+      color: var(--text);
+      font-size: 0.94rem;
+      letter-spacing: -0.005em;
+    }
+    .ix-pair em { font-style: normal; color: var(--text-muted); font-weight: 500; padding: 0 4px; }
+    .ix-explain { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.5; }
+    .ix-rec {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      padding: 8px 10px;
+      background: var(--bg-subtle);
+      border-radius: 6px;
+    }
+    .ix-rec strong { color: var(--text-secondary); font-weight: 600; }
+    .ix-source { margin-top: 6px; font-size: 0.74rem; color: var(--text-dim); font-family: var(--font-mono); }
+
+    .warn-box {
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      font-size: 0.86rem;
+      line-height: 1.5;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .warn-box svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+    .warn-box.allergy { background: var(--danger-bg); border: 1px solid var(--danger-border); color: var(--danger-text); }
+    .warn-box.lifestyle { background: var(--warning-bg); border: 1px solid var(--warning-border); color: var(--warning-text); }
+    .warn-box ul { margin: 0; padding-left: 18px; }
+    .warn-box ul li { margin-bottom: 3px; }
+
+    .data-row {
+      display: grid;
+      grid-template-columns: max-content 1fr;
+      gap: 8px 14px;
+      margin-top: 12px;
+      font-size: 0.85rem;
+    }
+    .data-row dt {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+      font-weight: 500;
+      padding-top: 2px;
+    }
+    .data-row dd {
+      margin: 0;
+      color: var(--text);
+    }
+    .data-row dd.muted { color: var(--text-muted); font-style: italic; }
+
+    .counseling-list {
+      list-style: none;
+      padding: 0;
+      margin: 8px 0 0;
+      display: grid;
+      gap: 6px;
+    }
+    .counseling-list li {
+      position: relative;
+      padding: 7px 10px 7px 26px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 0.86rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    .counseling-list li::before {
+      content: "";
+      position: absolute;
+      left: 11px;
+      top: 50%;
+      width: 6px;
+      height: 6px;
+      transform: translateY(-50%);
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    /* Audit trail */
+    .audit-trail {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .audit-trail .audit-head {
+      display: flex; gap: 6px; align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .audit-trail .audit-head svg { width: 12px; height: 12px; }
+    .audit-trail ol { margin: 0; padding-left: 0; list-style: none; }
+    .audit-trail li {
+      display: flex; gap: 10px;
+      padding: 4px 0;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
+    }
+    .audit-trail li .audit-when {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      min-width: 130px;
+      flex-shrink: 0;
+    }
+    .audit-trail li .audit-step strong { color: var(--text); font-weight: 600; }
+    .audit-trail li .audit-by { color: var(--text-muted); }
+
+    /* Actions */
+    .actions {
+      margin-top: 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    /* Eval panel */
+    .eval-panel {
+      margin-top: 18px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    /* Skeleton */
+    .skel-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 18px;
+    }
+    .skel-line {
+      background: var(--bg-subtle);
+      border-radius: 4px;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    .skel-line + .skel-line { margin-top: 8px; }
+    .skel-line.w-30 { width: 30%; height: 14px; }
+    .skel-line.w-50 { width: 50%; height: 14px; }
+    .skel-line.w-80 { width: 80%; height: 14px; }
+    .skel-line.w-100 { width: 100%; height: 12px; }
+    .skel-line.tall { height: 28px; }
+
+    /* Empty / Error state */
+    .empty-state {
+      background: var(--bg-card);
+      border: 1px dashed var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 40px 24px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .empty-state .empty-icon {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: var(--bg-subtle);
+      margin: 0 auto 12px;
+      display: grid; place-items: center;
+      color: var(--text-secondary);
+    }
+    .empty-state .empty-icon svg { width: 24px; height: 24px; }
+    .empty-state h3 {
+      font-family: var(--font-display);
+      margin: 0 0 6px;
+      font-size: 1.05rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .empty-state p {
+      margin: 0;
+      font-size: 0.88rem;
+      line-height: 1.5;
+    }
+
+    .error-state {
+      background: var(--danger-bg);
+      border: 1px solid var(--danger-border);
+      border-radius: var(--radius-lg);
+      padding: 16px 18px;
+      color: var(--danger-text);
+      display: flex; gap: 12px; align-items: flex-start;
+    }
+    .error-state svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+    .error-state strong { font-weight: 600; color: var(--danger-text); }
+
+    /* Toast */
+    .toast-stack {
+      position: fixed;
+      top: 80px; right: 24px;
+      display: flex; flex-direction: column; gap: 8px;
+      z-index: 5000;
+      max-width: calc(100vw - 48px);
+      width: 360px;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      border-radius: var(--radius);
+      padding: 11px 14px;
+      box-shadow: var(--shadow-lg);
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: 0.88rem;
+      animation: toastIn 0.22s ease-out both;
+    }
+    .toast.success { border-left-color: var(--success); }
+    .toast.error   { border-left-color: var(--danger); }
+    .toast.warning { border-left-color: var(--warning); }
+    .toast svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; color: var(--accent-2); }
+    .toast.success svg { color: var(--success); }
+    .toast.error svg { color: var(--danger); }
+    .toast.warning svg { color: var(--warning); }
+    .toast .toast-body { min-width: 0; line-height: 1.45; }
+    .toast .toast-body strong { font-weight: 600; display: block; margin-bottom: 1px; }
+    .toast button.toast-close {
+      background: transparent; border: none; padding: 4px; cursor: pointer;
+      color: var(--text-muted); margin-left: auto;
+      display: grid; place-items: center; border-radius: 4px;
+    }
+    .toast button.toast-close:hover { background: var(--bg-subtle); color: var(--text); }
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateX(12px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+
+    /* Modal */
     .modal-overlay {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(17, 24, 39, 0.48);
+      background: rgba(15, 23, 42, 0.45);
+      backdrop-filter: blur(4px);
       z-index: 3000;
       align-items: center;
       justify-content: center;
-      padding: 16px;
+      padding: 24px;
     }
     .modal-overlay.open { display: flex; }
     .modal-box {
-      background: var(--panel);
-      border-radius: 12px;
-      max-width: 720px;
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      max-width: 700px;
       width: 100%;
       max-height: 90vh;
       overflow: auto;
-      padding: 18px;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
-      border: 1px solid var(--line);
+      padding: 22px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border);
+      animation: rise 0.2s ease-out both;
     }
-    .modal-box h3 { margin: 0 0 8px; font-size: 1.05rem; }
-    .modal-box .modal-hint { font-size: .8rem; color: var(--muted); margin-bottom: 10px; line-height: 1.45; }
+    @keyframes rise {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .modal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 10px; }
+    .modal-box h3 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+    }
+    .modal-hint { font-size: 0.84rem; color: var(--text-muted); margin: 0 0 14px; line-height: 1.5; }
     .modal-box textarea.counseling-edit {
+      width: 100%;
       min-height: 280px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: .84rem;
-      line-height: 1.5;
+      padding: 12px;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 0.86rem;
+      line-height: 1.55;
+      background: var(--bg-subtle);
+      color: var(--text);
+      resize: vertical;
     }
-    .modal-actions { display: flex; gap: 10px; margin-top: 14px; justify-content: flex-end; flex-wrap: wrap; }
+    .modal-box textarea.counseling-edit:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
+      background: #fff;
+    }
+    .modal-actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; flex-wrap: wrap; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <header class="panel">
-      <div class="header-title-row">
-        <h1>💊 Pharmacy Workflow Automation</h1>
-        <button type="button" class="btn btn-logout" id="logout-btn" title="Sign out and return to login">Log out</button>
+  <!-- ============ HEADER ============ -->
+  <header class="app-header" data-testid="app-header">
+    <div class="app-header-inner">
+      <div class="brand-cluster">
+        <div class="brand-mark" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 4h4.5a3.5 3.5 0 0 1 0 7H7" />
+            <path d="M7 4v16" />
+            <path d="M10 11l6 9" />
+            <path d="M14 14l-3.5 -3.5" />
+          </svg>
+        </div>
+        <span class="brand-name" data-testid="header-brand">Rx<em>Flow</em></span>
+        <span class="brand-env" data-testid="header-env">Workspace</span>
       </div>
-      <ul class="hero-taglines" aria-label="What this app covers">
-        <li><strong>Drug interactions</strong> — screen new and current meds against your local interaction database</li>
-        <li><strong>Workflow</strong> — track each prescription from received through pickup and completion</li>
-        <li><strong>Counseling</strong> — structured counseling points you can review and edit</li>
-      </ul>
-      <div class="subtitle">Data loads from your server’s SQLite database (CSV ingest via <code>DRUG_INTERACTIONS_CSV</code> or <code>fastapi/data/</code>). Interactions are local only (no live sync).</div>
 
-      <div class="stats" id="stats">
-        <div class="stat"><div class="label">Total</div><div class="value" id="total-count">0</div></div>
-        <div class="stat"><div class="label">New</div><div class="value" id="new-count">0</div></div>
-        <div class="stat"><div class="label">Ready to Fill</div><div class="value" id="ready-count">0</div></div>
-        <div class="stat"><div class="label">Ready for pickup</div><div class="value" id="pickup-count">0</div></div>
-        <div class="stat"><div class="label">Dispensed</div><div class="value" id="dispensed-count">0</div></div>
+      <div class="global-search">
+        <i data-lucide="search" class="lead"></i>
+        <input
+          type="search"
+          id="patient-search-input"
+          autocomplete="off"
+          placeholder="Search intakes by patient name…"
+          aria-label="Search patient intakes"
+          data-testid="global-search-input"
+        />
       </div>
-    </header>
 
+      <div class="user-cluster">
+        <span class="user-chip" id="user-chip" data-testid="user-chip">
+          <span class="avatar" id="user-avatar">?</span>
+          <span id="user-name">Loading…</span>
+        </span>
+        <button type="button" class="btn" id="logout-btn" title="Sign out" data-testid="logout-button">
+          <i data-lucide="log-out"></i>
+          Log out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <!-- Title row -->
+    <div class="page-title-row">
+      <div>
+        <h1>Pharmacy workspace</h1>
+        <p class="page-subtitle">Screen interactions, advance prescriptions, and document counseling.</p>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <section class="stats" id="stats" aria-label="Workspace metrics">
+      <!-- Filled by JS; skeleton state by default -->
+    </section>
+
+    <!-- Layout: intake form + intake list -->
     <div class="layout">
-      <section class="panel">
-        <h2>New Intake</h2>
-        <form id="intake-form">
+      <section class="panel" id="intake-form-panel">
+        <h2>
+          <i data-lucide="file-plus-2"></i>
+          New intake
+        </h2>
+        <form id="intake-form" novalidate>
           <div class="field">
-            <label>Patient Name</label>
-            <input id="patient-name" required />
+            <label for="patient-name">Patient name</label>
+            <input id="patient-name" required data-testid="form-patient-name" placeholder="Last, First" />
           </div>
 
-          <div class="grid-two">
-            <div class="field">
-              <label>Age</label>
-              <input id="patient-age" type="number" min="0" max="150" />
+          <div class="field-row">
+            <div class="field" style="margin-bottom:0;">
+              <label for="patient-age">Age</label>
+              <input id="patient-age" type="number" min="0" max="150" data-testid="form-patient-age" placeholder="e.g. 64" />
             </div>
-            <div class="field">
-              <label>Gender</label>
-              <select id="patient-gender">
-                <option value="">Unknown / not specified</option>
+            <div class="field" style="margin-bottom:0;">
+              <label for="patient-gender">Gender</label>
+              <select id="patient-gender" data-testid="form-patient-gender">
+                <option value="">Unspecified</option>
                 <option value="female">Female</option>
                 <option value="male">Male</option>
                 <option value="other">Other</option>
@@ -467,64 +1117,68 @@
               </select>
             </div>
           </div>
-          <div class="field">
-            <label>Allergies</label>
-            <input id="patient-allergies" placeholder="e.g. penicillin" />
+          <div class="field" style="margin-top:12px;">
+            <label for="patient-allergies">Allergies</label>
+            <input id="patient-allergies" placeholder="e.g. penicillin (or NKDA)" data-testid="form-allergies" />
           </div>
 
           <div class="field">
-            <label>Medications (new)</label>
-            <textarea id="medications" required placeholder="warfarin, lisinopril"></textarea>
+            <label for="medications">New medications</label>
+            <textarea id="medications" required placeholder="e.g. warfarin, lisinopril" data-testid="form-medications"></textarea>
           </div>
 
           <div class="field">
-            <label>Current medications</label>
-            <textarea id="current-medications" placeholder="aspirin"></textarea>
-            <div class="hint" style="grid-column: 1 / -1; margin-top: 4px;">Interaction check uses pairs loaded from your <code>db_drug_interactions.csv</code> into the server database (see <code>DRUG_INTERACTIONS_CSV</code>).</div>
+            <label for="current-medications">Current medications</label>
+            <textarea id="current-medications" placeholder="e.g. aspirin" data-testid="form-current-medications"></textarea>
+            <div class="hint">Interaction check uses pairs loaded from <code>db_drug_interactions.csv</code> at startup.</div>
           </div>
 
-          <h2 style="margin-top:14px;">Patient Risk Context</h2>
-          <div class="grid-two">
-            <div class="field">
-              <label>Renal status</label>
-              <select id="renal-status">
-                <option value="">Unknown</option>
-                <option value="normal">Normal</option>
-                <option value="mild">Mild impairment</option>
-                <option value="moderate">Moderate impairment</option>
-                <option value="severe">Severe impairment</option>
-              </select>
+          <div class="section-divider">
+            <h3>Patient risk context</h3>
+            <div class="field-row">
+              <div class="field" style="margin-bottom:10px;">
+                <label for="renal-status">Renal status</label>
+                <select id="renal-status" data-testid="form-renal">
+                  <option value="">Unknown</option>
+                  <option value="normal">Normal</option>
+                  <option value="mild">Mild impairment</option>
+                  <option value="moderate">Moderate impairment</option>
+                  <option value="severe">Severe impairment</option>
+                </select>
+              </div>
+              <div class="field" style="margin-bottom:10px;">
+                <label for="hepatic-status">Hepatic status</label>
+                <select id="hepatic-status" data-testid="form-hepatic">
+                  <option value="">Unknown</option>
+                  <option value="normal">Normal</option>
+                  <option value="mild">Mild impairment</option>
+                  <option value="moderate">Moderate impairment</option>
+                  <option value="severe">Severe impairment</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field" style="margin-bottom:10px;">
+                <label for="alcohol-use">Alcohol use</label>
+                <select id="alcohol-use" data-testid="form-alcohol">
+                  <option value="">Unknown</option>
+                  <option value="none">None</option>
+                  <option value="occasional">Occasional</option>
+                  <option value="regular">Regular</option>
+                </select>
+              </div>
+              <div class="field" style="margin-bottom:10px;">
+                <label for="pregnancy">Pregnancy</label>
+                <select id="pregnancy" data-testid="form-pregnancy">
+                  <option value="">Unknown / N/A</option>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
             </div>
             <div class="field">
-              <label>Hepatic status</label>
-              <select id="hepatic-status">
-                <option value="">Unknown</option>
-                <option value="normal">Normal</option>
-                <option value="mild">Mild impairment</option>
-                <option value="moderate">Moderate impairment</option>
-                <option value="severe">Severe impairment</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Alcohol use</label>
-              <select id="alcohol-use">
-                <option value="">Unknown</option>
-                <option value="none">None</option>
-                <option value="occasional">Occasional</option>
-                <option value="regular">Regular</option>
-              </select>
-            </div>
-            <div class="field">
-              <label>Pregnancy</label>
-              <select id="pregnancy">
-                <option value="">Unknown / N/A</option>
-                <option value="no">No</option>
-                <option value="yes">Yes</option>
-              </select>
-            </div>
-            <div class="field" style="grid-column: 1 / -1;">
-              <label>Smoking</label>
-              <select id="smoking">
+              <label for="smoking">Smoking</label>
+              <select id="smoking" data-testid="form-smoking">
                 <option value="">Unknown</option>
                 <option value="no">No</option>
                 <option value="former">Former</option>
@@ -534,156 +1188,233 @@
           </div>
 
           <div class="field">
-            <label>Notes</label>
-            <textarea id="notes" placeholder="Optional pharmacist notes"></textarea>
+            <label for="notes">Pharmacist notes</label>
+            <textarea id="notes" placeholder="Optional pharmacist notes" data-testid="form-notes"></textarea>
           </div>
 
-          <button class="btn success" type="submit" id="submit-btn">Create Intake</button>
+          <button class="btn primary" type="submit" id="submit-btn" data-testid="form-submit" style="width:100%; padding:11px 14px; font-size:0.92rem;">
+            <i data-lucide="plus-circle"></i>
+            <span id="submit-btn-text">Create intake</span>
+          </button>
         </form>
 
         <div id="eval-panel" class="eval-panel" style="display:none;">
-          <div class="row-between" style="margin-bottom:10px;">
-            <h2 style="margin:0;">Interaction Analysis</h2>
-            <button class="btn secondary" onclick="document.getElementById('eval-panel').style.display='none';" style="font-size:.75rem; padding:4px 8px;">✕ Close</button>
+          <div class="panel-row">
+            <h2 style="margin:0;">
+              <i data-lucide="shield-alert"></i>
+              Interaction analysis
+            </h2>
+            <button class="btn ghost xs" onclick="document.getElementById('eval-panel').style.display='none';" data-testid="close-eval-button">
+              <i data-lucide="x"></i> Close
+            </button>
           </div>
-          <div id="eval-loading" style="display:none;" class="muted">Checking interactions…</div>
+          <div id="eval-loading" style="display:none;">
+            <div class="skel-line w-30 tall" style="height:18px;"></div>
+            <div class="skel-line w-100"></div>
+            <div class="skel-line w-80"></div>
+          </div>
           <div id="eval-content"></div>
         </div>
       </section>
 
-      <section class="panel intakes-column">
-        <div class="row-between" style="margin-bottom:10px;">
-          <h2 style="margin:0;">Intakes</h2>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <label class="hint" for="status-filter">Filter:</label>
-            <select id="status-filter" style="width:auto; min-width:160px;">
-              <option value="">All statuses</option>
-              <option value="new">New</option>
-              <option value="triage">Triage</option>
-              <option value="waiting_info">Waiting Info</option>
-              <option value="ready_to_fill">Ready to Fill</option>
-              <option value="filled">Filled</option>
-              <option value="dispensed">Dispensed</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
+      <section class="intakes-column">
+        <!-- Filter chips bar -->
+        <div class="filter-bar" id="filter-bar" data-testid="filter-bar">
+          <span class="filter-label">Filter</span>
+          <!-- chips inserted dynamically -->
         </div>
-        <div id="intake-list" class="intake-list"></div>
 
-        <div class="patient-search-section">
-          <h3>Find by patient name</h3>
-          <p class="hint">Search all intakes (any status) whose patient name contains your text. Results show the same details as the cards above.</p>
-          <input type="search" id="patient-search-input" placeholder="e.g. Smith or Maria" autocomplete="off" />
-          <div id="patient-search-results" class="muted" style="margin-top:10px;">Type a patient name to look up intakes.</div>
+        <div id="intake-list" class="intake-list" aria-live="polite">
+          <!-- skeleton placeholder injected by JS -->
+        </div>
+
+        <div id="patient-search-results-section" style="display:none;">
+          <div class="panel" style="padding:14px 18px;">
+            <div class="panel-row">
+              <h2 style="margin:0;">
+                <i data-lucide="search"></i>
+                Search results
+              </h2>
+              <button class="btn ghost xs" id="clear-search-btn" data-testid="clear-search-button">
+                <i data-lucide="x"></i> Clear
+              </button>
+            </div>
+            <div id="patient-search-results" class="intake-list" aria-live="polite"></div>
+          </div>
         </div>
       </section>
     </div>
-  </div>
+  </main>
 
+  <!-- Counseling modal -->
   <div id="counseling-modal" class="modal-overlay" onclick="if (event.target === this) closeCounselingModal();" role="dialog" aria-modal="true" aria-labelledby="counseling-modal-title">
     <div class="modal-box" onclick="event.stopPropagation();">
-      <h3 id="counseling-modal-title">Edit counseling</h3>
-      <p class="modal-hint">Full counseling text for this intake. Each non-empty line appears as a point below (leading • or - is optional). Save replaces the auto-generated text.</p>
-      <textarea id="counseling-modal-text" class="counseling-edit" placeholder="Enter or adjust counseling for the patient…"></textarea>
+      <div class="modal-head">
+        <h3 id="counseling-modal-title">Edit counseling</h3>
+        <button type="button" class="btn ghost xs" onclick="closeCounselingModal();" aria-label="Close" data-testid="close-counseling-modal-button">
+          <i data-lucide="x"></i>
+        </button>
+      </div>
+      <p class="modal-hint">Full counseling text for this intake. Each non-empty line becomes a counseling point (leading <code style="font-family:var(--font-mono);">•</code> or <code style="font-family:var(--font-mono);">-</code> is optional). Save replaces the auto-generated text.</p>
+      <textarea id="counseling-modal-text" class="counseling-edit" placeholder="Enter or adjust counseling for the patient…" data-testid="counseling-edit-textarea"></textarea>
       <div class="modal-actions">
-        <button type="button" class="btn secondary" onclick="closeCounselingModal();">Cancel</button>
-        <button type="button" class="btn success" onclick="saveCounselingFromModal();">Save counseling</button>
+        <button type="button" class="btn" onclick="closeCounselingModal();" data-testid="cancel-counseling-button">Cancel</button>
+        <button type="button" class="btn primary" onclick="saveCounselingFromModal();" data-testid="save-counseling-button">
+          <i data-lucide="save"></i> Save counseling
+        </button>
       </div>
     </div>
   </div>
 
+  <!-- Toast stack -->
+  <div class="toast-stack" id="toast-stack" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script>
     const API_BASE = window.location.origin;
 
+    /* ============ Constants ============ */
     const WORKFLOW_STEPS = [
-      { key: 'new', label: 'Received' },
-      { key: 'triage', label: 'Data entry' },
-      { key: 'waiting_info', label: 'Clarify' },
-      { key: 'ready_to_fill', label: 'Fill queue' },
-      { key: 'filled', label: 'Ready for pickup' },
-      { key: 'dispensed', label: 'Picked up' },
-      { key: 'completed', label: 'Done' },
+      { key: 'new',            label: 'Received'   },
+      { key: 'triage',         label: 'Triage'     },
+      { key: 'waiting_info',   label: 'Clarify'    },
+      { key: 'ready_to_fill',  label: 'Fill queue' },
+      { key: 'filled',         label: 'Pickup'     },
+      { key: 'dispensed',      label: 'Dispensed'  },
+      { key: 'completed',      label: 'Done'       },
     ];
 
+    const STATUS_FILTERS = [
+      { key: '',               label: 'All' },
+      { key: 'new',            label: 'New' },
+      { key: 'triage',         label: 'Triage' },
+      { key: 'waiting_info',   label: 'Waiting' },
+      { key: 'ready_to_fill',  label: 'Ready to fill' },
+      { key: 'filled',         label: 'Ready for pickup' },
+      { key: 'dispensed',      label: 'Dispensed' },
+      { key: 'completed',      label: 'Completed' },
+    ];
+
+    const SEV_ICON = {
+      contraindicated: 'octagon-alert',
+      major: 'triangle-alert',
+      moderate: 'alert-circle',
+      minor: 'info',
+      unknown: 'help-circle',
+    };
+
+    const _RISK_MAP = { contraindicated:'Very High', major:'High', moderate:'Moderate', minor:'Low', unknown:'Unknown' };
+    const _REC_MAP = {
+      contraindicated: 'Avoid this combination. Seek immediate medical advice.',
+      major: 'Avoid unless specifically directed by the prescriber. Requires close monitoring.',
+      moderate: 'Use with caution. Monitor closely and counsel the patient.',
+      minor: 'Generally safe; monitor for minor side effects.',
+      unknown: 'Insufficient data — consult the prescriber or pharmacist.',
+    };
+    const _SEV_ORDER = ['contraindicated','major','moderate','minor','unknown'];
+
+    let activeStatusFilter = '';
+    let currentStats = null;
+
+    function _riskClass(risk) {
+      return { 'None':'risk-none','Low':'risk-low','Moderate':'risk-moderate','High':'risk-high','Very High':'risk-veryhigh' }[risk] || 'risk-unknown';
+    }
+    function _riskIcon(risk) {
+      return { 'None':'check-circle-2','Low':'info','Moderate':'alert-circle','High':'triangle-alert','Very High':'octagon-alert' }[risk] || 'help-circle';
+    }
+    function fmt(v) { return (v === null || v === undefined || v === '') ? '—' : v; }
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+    function initIcons() {
+      try { window.lucide && window.lucide.createIcons(); } catch (e) {}
+    }
+
+    /* ============ Toasts ============ */
+    function toast({ title, message = '', type = 'info', timeout = 4500 } = {}) {
+      const stack = document.getElementById('toast-stack');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      const icon = type === 'success' ? 'check-circle-2'
+                 : type === 'error'   ? 'alert-octagon'
+                 : type === 'warning' ? 'alert-triangle'
+                 : 'info';
+      el.innerHTML = `
+        <i data-lucide="${icon}"></i>
+        <div class="toast-body">
+          ${title ? `<strong>${esc(title)}</strong>` : ''}
+          ${message ? esc(message) : ''}
+        </div>
+        <button class="toast-close" aria-label="Dismiss"><i data-lucide="x"></i></button>
+      `;
+      stack.appendChild(el);
+      initIcons();
+      const close = () => { el.style.animation = 'toastIn 0.18s ease-out reverse both'; setTimeout(() => el.remove(), 200); };
+      el.querySelector('.toast-close').addEventListener('click', close);
+      if (timeout) setTimeout(close, timeout);
+    }
+
+    /* ============ Workflow stepper ============ */
     function renderWorkflowTrack(status) {
       const idx = WORKFLOW_STEPS.findIndex(s => s.key === status);
       return WORKFLOW_STEPS.map((s, i) => {
         let cls = 'step';
-        if (i === idx) cls += s.key === 'filled' ? ' pickup' : ' on';
-        return `<span class="${cls}">${s.label}</span>`;
-      }).join('<span class="muted">→</span>');
+        if (i < idx) cls += ' done';
+        else if (i === idx) cls += s.key === 'filled' ? ' pickup' : ' active';
+        return `<span class="${cls}">${esc(s.label)}</span>`;
+      }).join('<span class="sep">›</span>');
     }
 
+    /* ============ Pickup messages / actions ============ */
     function pickupReadyMessage(intakeId, patientName) {
       const who = (patientName && String(patientName).trim()) || 'Patient';
       return `Hi ${who}, your prescription (order #${intakeId}) is ready for pickup at the pharmacy. Please bring a valid ID. Thank you.`;
     }
-
     function notifyPickupBrowser(intakeId, patientName) {
       if (!('Notification' in window)) {
-        alert('This browser does not support desktop notifications. Use Copy or SMS/Email below.');
+        toast({ title: 'Not supported', message: 'This browser does not support desktop notifications. Use Copy or SMS/Email instead.', type: 'warning' });
         return;
       }
       const run = () => {
         try {
-          new Notification('Prescription ready for pickup', {
-            body: pickupReadyMessage(intakeId, patientName),
-            tag: `pickup-${intakeId}`,
-          });
-        } catch (e) {
-          alert('Could not show notification: ' + (e.message || e));
-        }
+          new Notification('Prescription ready for pickup', { body: pickupReadyMessage(intakeId, patientName), tag: `pickup-${intakeId}` });
+        } catch (e) { toast({ title: 'Notification error', message: String(e.message || e), type: 'error' }); }
       };
-      if (Notification.permission === 'granted') {
-        run();
-        return;
-      }
+      if (Notification.permission === 'granted') return run();
       if (Notification.permission === 'denied') {
-        alert('Notifications are blocked for this site. Enable them in browser settings, or use Copy / SMS / Email.');
+        toast({ title: 'Blocked', message: 'Notifications are blocked. Enable them in browser settings, or use Copy/SMS/Email.', type: 'warning' });
         return;
       }
       Notification.requestPermission().then((p) => {
         if (p === 'granted') run();
-        else alert('Notification permission not granted. You can still use Copy, SMS, or Email.');
+        else toast({ title: 'Permission needed', message: 'Notification permission not granted.', type: 'warning' });
       });
     }
-
     function copyPickupMessage(intakeId, patientName) {
       const text = pickupReadyMessage(intakeId, patientName);
+      const ok = () => toast({ title: 'Copied', message: 'Pickup message ready to paste.', type: 'success' });
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => alert('Message copied. Paste into text, email, or your patient system.')).catch(() => fallbackCopy(text));
-      } else {
-        fallbackCopy(text);
-      }
+        navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok));
+      } else fallbackCopy(text, ok);
     }
-
-    function fallbackCopy(text) {
+    function fallbackCopy(text, onok) {
       const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand('copy');
-        alert('Message copied.');
-      } catch (e) {
-        prompt('Copy this message:', text);
-      }
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); onok && onok(); }
+      catch { prompt('Copy this message:', text); }
       document.body.removeChild(ta);
     }
-
     function openPickupSms(intakeId, patientName) {
       const body = encodeURIComponent(pickupReadyMessage(intakeId, patientName));
       window.location.href = `sms:?body=${body}`;
     }
-
     function openPickupEmail(intakeId, patientName) {
       const subj = encodeURIComponent(`Prescription ready for pickup — order #${intakeId}`);
       const body = encodeURIComponent(pickupReadyMessage(intakeId, patientName));
       window.location.href = `mailto:?subject=${subj}&body=${body}`;
     }
 
-    const fmt = (v) => (v === null || v === undefined || v === '' ? '—' : v);
-
+    /* ============ Patient context (notes) ============ */
     function buildPatientContextString() {
       const ctx = {
         patient_gender: document.getElementById('patient-gender').value || 'unknown',
@@ -695,74 +1426,6 @@
       };
       return `\n\n[Patient Context]\n${Object.entries(ctx).map(([k,v]) => `${k}: ${v}`).join('\n')}`;
     }
-
-    async function fetchWithTimeout(url, options = {}, timeout = 10000) {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), timeout);
-      try {
-        const res = await fetch(url, {
-          ...options,
-          signal: controller.signal,
-          cache: options.cache ?? 'no-store',
-        });
-        clearTimeout(t);
-        return res;
-      } catch (e) {
-        clearTimeout(t);
-        throw e;
-      }
-    }
-
-    function parseCounselingPoints(text = '') {
-      return text
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
-        .map(line => line.replace(/^[•\-*]\s*/, ''));
-    }
-
-    function redFlagsFromInteractions(interactions = []) {
-      return interactions
-        .filter(i => ['Major', 'Contraindicated'].includes((i.severity || '').trim()))
-        .map(i => `${i.drug1} + ${i.drug2}: ${i.description}`);
-    }
-
-    const _RISK_MAP = { contraindicated:'Very High', major:'High', moderate:'Moderate', minor:'Low', unknown:'Unknown' };
-    const _REC_MAP = {
-      contraindicated: 'Avoid this combination. Seek immediate medical advice.',
-      major: 'Avoid unless specifically directed by your doctor. Requires close monitoring.',
-      moderate: 'Use with caution. Monitor closely and consult your pharmacist or doctor.',
-      minor: 'Generally safe, but monitor for minor side effects. Ask pharmacist if unsure.',
-      unknown: 'Insufficient data — consult your pharmacist or doctor.',
-    };
-
-    function _riskClass(risk) {
-      return { 'None':'risk-none','Low':'risk-low','Moderate':'risk-moderate','High':'risk-high','Very High':'risk-veryhigh' }[risk] || 'risk-unknown';
-    }
-
-    function renderInteractionSection(interactions = []) {
-      if (!interactions.length) {
-        return '<div class="warn-box none">✓ No known drug-drug interactions found in current knowledge base.</div>';
-      }
-      return interactions.map(i => {
-        const sev = (i.severity || 'unknown').toLowerCase();
-        const risk = _RISK_MAP[sev] || 'Unknown';
-        const rec = _REC_MAP[sev] || _REC_MAP.unknown;
-        return `
-          <div class="ix-card">
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
-              <span class="severity ${sev}">${fmt(i.severity)}</span>
-              <strong>${fmt(i.drug1).toUpperCase()} + ${fmt(i.drug2).toUpperCase()}</strong>
-              <span class="risk-badge ${_riskClass(risk)}" style="margin-left:auto;">Risk: ${risk}</span>
-            </div>
-            <div style="font-size:.88rem; margin-bottom:5px;">${fmt(i.description)}</div>
-            <div style="font-size:.82rem; color:var(--muted);"><strong>Recommendation:</strong> ${rec}</div>
-            ${i.monitoring ? `<div style="margin-top:5px;"><span class="pill">Monitor: ${i.monitoring}</span></div>` : ''}
-          </div>
-        `;
-      }).join('');
-    }
-
     function _parsePatientContext(notes) {
       if (!notes) return {};
       const m = notes.match(/\[Patient Context\]([\s\S]*)/);
@@ -775,10 +1438,18 @@
       return ctx;
     }
 
-    function _tokenize(text) {
-      return (text || '').toLowerCase().split(/[,;\s/]+/).filter(t => t.length > 2);
+    /* ============ Fetch ============ */
+    async function fetchWithTimeout(url, options = {}, timeout = 10000) {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), timeout);
+      try {
+        const res = await fetch(url, { ...options, signal: controller.signal, cache: options.cache ?? 'no-store' });
+        clearTimeout(t); return res;
+      } catch (e) { clearTimeout(t); throw e; }
     }
 
+    /* ============ Allergy / lifestyle helpers (front-end mirrors) ============ */
+    function _tokenize(text) { return (text || '').toLowerCase().split(/[,;\s/]+/).filter(t => t.length > 2); }
     function computeAllergyWarnings(allergies, medications, currentMedications) {
       if (!allergies) return [];
       const nkda = new Set(['nkda','no known drug allergies','none','nka','no allergies','no known allergies','nil']);
@@ -818,12 +1489,10 @@
       }
       return warnings;
     }
-
-    const _FEMALE_INDICATORS_JS = new Set(['female','f','woman','girl']);
-    const _MALE_INDICATORS_JS   = new Set(['male','m','man','boy']);
+    const _FEMALE = new Set(['female','f','woman','girl']);
+    const _MALE   = new Set(['male','m','man','boy']);
     const _TERATOGEN_RE = /methotrexate|isotretinoin|leflunomide|thalidomide|azathioprine|valproat|lithium|warfarin|ribavirin|mycophenolate|bosentan|finasteride|dutasteride/;
     const _MALE_MED_RE  = /sildenafil|tadalafil|vardenafil|finasteride|dutasteride|testosterone|tamsulosin|alfuzosin/;
-
     function computeLifestyleWarnings(ctx, medications, currentMedications) {
       const warnings = [], seen = new Set();
       const meds = [medications, currentMedications].filter(Boolean).join(' ').toLowerCase();
@@ -837,88 +1506,99 @@
       if (['yes','former'].includes(smoking))
         add('Smoking can affect metabolism of many medications and may reduce effectiveness. Dose adjustments may be needed.');
       if (['regular','occasional'].includes(alcohol))
-        add('Alcohol use may increase risk of side effects (drowsiness, dizziness, stomach upset). Consult your pharmacist.');
+        add('Alcohol use may increase risk of side effects (drowsiness, dizziness, stomach upset).');
       if (alcohol === 'regular' && /warfarin|metronidazole|isoniazid|acetaminophen/.test(meds))
-        add('Regular alcohol use with one or more of your medications may cause serious harm — increased bleeding or liver damage risk.');
+        add('Regular alcohol use with one or more of these medications may cause serious harm — bleeding or liver damage risk.');
       if (alcohol && /alprazolam|lorazepam|diazepam|clonazepam|zolpidem|hydrocodone|oxycodone|morphine|codeine|tramadol/.test(meds))
-        add('Alcohol combined with sedative or pain medications can cause dangerous over-sedation. Avoid alcohol entirely.');
+        add('Alcohol with sedative or pain medications can cause dangerous over-sedation. Avoid alcohol entirely.');
       if (['mild','moderate','severe'].includes(renal))
         add(`Kidney impairment (${renal}) may affect medication dosing and clearance — extra monitoring may be required.`);
       if (['mild','moderate','severe'].includes(hepatic))
         add(`Liver impairment (${hepatic}) affects drug metabolism — some medications may be less effective or more toxic.`);
       if (preg === 'yes')
-        add('Please confirm all medications are safe during pregnancy with your doctor or pharmacist.');
-      // Gender-specific
-      if (_FEMALE_INDICATORS_JS.has(gender)) {
+        add('Confirm all medications are safe during pregnancy with the prescriber.');
+      if (_FEMALE.has(gender)) {
         if (_TERATOGEN_RE.test(meds))
-          add('⚠ Gender-specific (female): one or more medications may be teratogenic or carry sex-specific risk. Confirm contraception status and safety with the prescriber.');
+          add('Gender-specific (female): one or more medications may be teratogenic. Confirm contraception status and safety with the prescriber.');
         if (preg === 'yes')
-          add('⚠ Pregnancy confirmed for a female patient — ensure all medications have been assessed for pregnancy safety.');
+          add('Pregnancy confirmed for a female patient — ensure all medications are pregnancy-safe.');
       }
-      if (_MALE_INDICATORS_JS.has(gender)) {
+      if (_MALE.has(gender)) {
         if (_MALE_MED_RE.test(meds))
-          add('ℹ Gender-specific note (male): one or more medications are indicated specifically for male patients — verify indication and dosing.');
+          add('Gender-specific (male): one or more medications are indicated specifically for male patients — verify indication and dosing.');
         if (preg === 'yes')
-          add('⚠ Pregnancy recorded for a patient identified as male — please verify the gender or pregnancy field before dispensing.');
+          add('Pregnancy recorded for a patient identified as male — verify the gender or pregnancy field before dispensing.');
       }
       return warnings;
     }
 
+    function parseCounselingPoints(text = '') {
+      return text.split('\n').map(line => line.trim()).filter(line => line.length > 0).map(line => line.replace(/^[•\-*]\s*/, ''));
+    }
+
+    /* ============ Rendering ============ */
+    function renderInteractionsList(interactions = []) {
+      if (!interactions.length) {
+        return `<div class="empty-callout"><i data-lucide="check-circle-2"></i> No known drug-drug interactions found in current knowledge base.</div>`;
+      }
+      const sorted = [...interactions].sort((a, b) => {
+        const ai = _SEV_ORDER.indexOf((a.severity || 'unknown').toLowerCase());
+        const bi = _SEV_ORDER.indexOf((b.severity || 'unknown').toLowerCase());
+        return ai - bi;
+      });
+      return sorted.map(i => {
+        const sev = (i.severity || 'unknown').toLowerCase();
+        const sevSafe = _SEV_ORDER.includes(sev) ? sev : 'unknown';
+        const risk = i.riskFactor || _RISK_MAP[sevSafe] || 'Unknown';
+        const rec = i.recommendation || _REC_MAP[sevSafe] || _REC_MAP.unknown;
+        const exp = i.explanation || i.description || 'Interaction identified.';
+        return `
+          <div class="ix-card sev-${sevSafe}">
+            <div class="ix-head">
+              <span class="sev-tag sev-${sevSafe}"><i data-lucide="${SEV_ICON[sevSafe]}"></i>${esc(i.severity || 'Unknown')}</span>
+              <span class="ix-pair">${esc(i.drug1 || '?')} <em>+</em> ${esc(i.drug2 || '?')}</span>
+              <span class="risk-badge ${_riskClass(risk)}" style="margin-left:auto;"><i data-lucide="${_riskIcon(risk)}"></i>${esc(risk)}</span>
+            </div>
+            <div class="ix-explain">${esc(exp)}</div>
+            <div class="ix-rec"><strong>Recommendation:</strong> ${esc(rec)}</div>
+            ${i.monitoring ? `<div style="margin-top:6px;"><span class="pill"><i data-lucide="activity"></i> Monitor: ${esc(i.monitoring)}</span></div>` : ''}
+            ${i.source ? `<div class="ix-source">Source: ${esc(i.source)}</div>` : ''}
+          </div>`;
+      }).join('');
+    }
+
     function renderEvaluateResult(data) {
       if (!data.success) {
-        return `<div class="muted">⚠ ${data.error || 'Analysis failed. See intake card for interaction details.'}</div>`;
+        return `<div class="error-state"><i data-lucide="alert-octagon"></i><div><strong>Analysis failed</strong><div>${esc(data.error || 'See intake card for interaction details.')}</div></div></div>`;
       }
       const interactions = data.interactions || [];
       const allergyWarnings = data.allergyWarnings || [];
       const lifestyleWarnings = data.lifestyleWarnings || [];
       const risk = data.overallRisk || 'Unknown';
       const rc = _riskClass(risk);
+      const ri = _riskIcon(risk);
 
       let html = `
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-          <strong>Overall Risk:</strong>
-          <span class="risk-badge ${rc}">${risk === 'None' ? '✓ None' : '⚠ ' + risk}</span>
-          ${!interactions.length && !allergyWarnings.length && !lifestyleWarnings.length
-            ? '<span class="muted" style="font-size:.84rem;">No warnings detected.</span>' : ''}
-        </div>`;
-
-      if (!interactions.length) {
-        html += '<div class="warn-box none">✓ No known drug-drug interactions found in current knowledge base.</div>';
-      } else {
-        html += '<div style="margin-bottom:4px;"><strong>Drug Interactions</strong></div>';
-        html += interactions.map(i => `
-          <div class="ix-card">
-            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
-              <span class="severity ${(i.severity||'unknown').toLowerCase()}">${i.severity}</span>
-              <strong>${i.drug1.toUpperCase()} + ${i.drug2.toUpperCase()}</strong>
-              <span class="risk-badge ${_riskClass(i.riskFactor)}" style="margin-left:auto;">Risk: ${i.riskFactor}</span>
-            </div>
-            <div style="font-size:.88rem; margin-bottom:5px;">${i.explanation}</div>
-            <div style="font-size:.82rem; color:var(--muted);"><strong>Recommendation:</strong> ${i.recommendation}</div>
-            ${i.source ? `<div style="margin-top:4px; font-size:.78rem; color:var(--muted);">Source: ${i.source}</div>` : ''}
-          </div>`).join('');
-      }
-
-      if (allergyWarnings.length) {
-        html += `<div style="margin-top:12px;"><strong style="color:var(--danger);">⚠ Allergy Warnings</strong>
-          <div class="warn-box allergy">${allergyWarnings.map(w => `<div style="margin-bottom:3px;">${w}</div>`).join('')}</div></div>`;
-      }
-
-      if (lifestyleWarnings.length) {
-        html += `<div style="margin-top:12px;"><strong style="color:var(--warning);">⚠ Lifestyle & Risk Factor Cautions</strong>
-          <div class="warn-box lifestyle">${lifestyleWarnings.map(w => `<div style="margin-bottom:3px;">${w}</div>`).join('')}</div></div>`;
-      }
-
-      return html;
-    }
-
-    function renderEvidenceSection(interactions = []) {
-      if (!interactions.length) return '<div class="muted">No evidence captured.</div>';
-      return `
-        <ul class="mini-list">
-          ${interactions.map(i => `<li>${fmt(i.drug1)} + ${fmt(i.drug2)} (${fmt(i.severity)}) — source: ${fmt(i.source || 'unknown')}</li>`).join('')}
-        </ul>
+        <div class="row-between" style="margin-bottom:14px;">
+          <span class="overline" style="font-family:var(--font-mono); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.16em; color:var(--text-muted);">Overall risk</span>
+          <span class="risk-badge ${rc}"><i data-lucide="${ri}"></i> ${esc(risk)}</span>
+        </div>
+        <div class="section-head"><i data-lucide="shield-alert"></i>Drug interactions <span class="count-pill">${interactions.length}</span></div>
+        ${renderInteractionsList(interactions)}
       `;
+      if (allergyWarnings.length) {
+        html += `
+          <div class="section-head" style="margin-top:14px;"><i data-lucide="ban"></i>Allergy warnings <span class="count-pill">${allergyWarnings.length}</span></div>
+          <div class="warn-box allergy"><i data-lucide="ban"></i><ul>${allergyWarnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>
+        `;
+      }
+      if (lifestyleWarnings.length) {
+        html += `
+          <div class="section-head" style="margin-top:14px;"><i data-lucide="heart-pulse"></i>Lifestyle cautions <span class="count-pill">${lifestyleWarnings.length}</span></div>
+          <div class="warn-box lifestyle"><i data-lucide="heart-pulse"></i><ul>${lifestyleWarnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>
+        `;
+      }
+      return html;
     }
 
     function getNextTransitions(status) {
@@ -934,293 +1614,431 @@
       return map[status] || [];
     }
 
+    function statusLabel(s) {
+      return (STATUS_FILTERS.find(f => f.key === s) || {}).label || s.replace('_', ' ');
+    }
+
+    /* ============ Stats ============ */
+    function renderStatsSkeleton() {
+      const stats = document.getElementById('stats');
+      const items = [0,1,2,3,4];
+      stats.innerHTML = items.map(() => `
+        <div class="stat skel">
+          <div class="stat-icon"></div>
+          <div class="stat-body">
+            <span class="label label-skel">label</span>
+            <span class="value">0</span>
+          </div>
+        </div>`).join('');
+    }
+    function renderStats(s) {
+      currentStats = s;
+      const stats = document.getElementById('stats');
+      stats.innerHTML = `
+        <div class="stat" data-testid="stat-total">
+          <div class="stat-icon"><i data-lucide="layers"></i></div>
+          <div class="stat-body"><span class="label">Total intakes</span><span class="value">${s.total || 0}</span></div>
+        </div>
+        <div class="stat neutral" data-testid="stat-new">
+          <div class="stat-icon"><i data-lucide="inbox"></i></div>
+          <div class="stat-body"><span class="label">New</span><span class="value">${s.by_status?.new || 0}</span></div>
+        </div>
+        <div class="stat warning" data-testid="stat-ready">
+          <div class="stat-icon"><i data-lucide="list-checks"></i></div>
+          <div class="stat-body"><span class="label">Ready to fill</span><span class="value">${s.by_status?.ready_to_fill || 0}</span></div>
+        </div>
+        <div class="stat success" data-testid="stat-pickup">
+          <div class="stat-icon"><i data-lucide="package-check"></i></div>
+          <div class="stat-body"><span class="label">Ready for pickup</span><span class="value">${s.ready_for_pickup ?? 0}</span></div>
+        </div>
+        <div class="stat purple" data-testid="stat-dispensed">
+          <div class="stat-icon"><i data-lucide="check-circle-2"></i></div>
+          <div class="stat-body"><span class="label">Dispensed</span><span class="value">${s.dispensed_count || 0}</span></div>
+        </div>
+      `;
+      initIcons();
+    }
     async function loadStatistics() {
       try {
         const res = await fetchWithTimeout(`${API_BASE}/intakes/stats/summary`);
-        if (!res.ok) return;
-        const stats = await res.json();
-        document.getElementById('total-count').textContent = stats.total || 0;
-        document.getElementById('new-count').textContent = stats.by_status?.new || 0;
-        document.getElementById('ready-count').textContent = stats.by_status?.ready_to_fill || 0;
-        document.getElementById('pickup-count').textContent = stats.ready_for_pickup ?? 0;
-        document.getElementById('dispensed-count').textContent = stats.dispensed_count || 0;
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        renderStats(await res.json());
       } catch (e) {
         console.error('Stats error', e);
       }
+    }
+
+    /* ============ Filter chips ============ */
+    function renderFilterBar() {
+      const bar = document.getElementById('filter-bar');
+      const inner = STATUS_FILTERS.map(f => {
+        const count = !f.key
+          ? (currentStats?.total ?? '')
+          : (currentStats?.by_status?.[f.key] ?? '');
+        const isActive = f.key === activeStatusFilter ? ' active' : '';
+        return `
+          <button type="button" class="chip${isActive}" data-status="${f.key}" data-testid="filter-chip-${f.key || 'all'}">
+            ${esc(f.label)}
+            ${count !== '' ? `<span class="count">${count}</span>` : ''}
+          </button>
+        `;
+      }).join('');
+      bar.innerHTML = `<span class="filter-label">Filter</span>${inner}`;
+      bar.querySelectorAll('.chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeStatusFilter = btn.getAttribute('data-status') || '';
+          renderFilterBar();
+          loadIntakes();
+        });
+      });
+    }
+
+    /* ============ Audit trail ============ */
+    async function loadAuditTrail(intakeId, container) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/history`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const history = await res.json();
+        if (!history.length) {
+          container.innerHTML = `<div class="audit-head"><i data-lucide="history"></i>Audit trail</div><div style="font-size:0.82rem; color:var(--text-muted);">No transitions recorded yet.</div>`;
+          initIcons();
+          return;
+        }
+        const formatted = history.slice(-6).reverse().map(h => {
+          const when = new Date(h.changed_at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+          const by = h.changed_by ? ` by <span class="audit-by">@${esc(h.changed_by)}</span>` : '';
+          const from = h.from_status ? `<strong>${esc(statusLabel(h.from_status))}</strong> → ` : '';
+          return `<li><span class="audit-when">${esc(when)}</span><span class="audit-step">${from}<strong>${esc(statusLabel(h.to_status))}</strong>${by}</span></li>`;
+        }).join('');
+        container.innerHTML = `<div class="audit-head"><i data-lucide="history"></i>Audit trail <span class="count-pill">${history.length}</span></div><ol>${formatted}</ol>`;
+        initIcons();
+      } catch (e) {
+        container.innerHTML = `<div class="audit-head"><i data-lucide="history"></i>Audit trail</div><div style="font-size:0.82rem; color:var(--text-muted);">Could not load history.</div>`;
+        initIcons();
+      }
+    }
+
+    /* ============ Intake card ============ */
+    function highestSevIdxFromInteractions(interactions) {
+      return interactions.reduce((acc, i) => {
+        const idx = _SEV_ORDER.indexOf((i.severity || 'unknown').toLowerCase());
+        return idx < acc ? idx : acc;
+      }, 99);
+    }
+    function overallRiskFromInteractions(interactions) {
+      const idx = highestSevIdxFromInteractions(interactions);
+      return idx <= 0 ? 'Very High'
+           : idx === 1 ? 'High'
+           : idx === 2 ? 'Moderate'
+           : idx === 3 ? 'Low'
+           : interactions.length ? 'Low'
+           : 'None';
     }
 
     function buildIntakeCardHTML(intake) {
       let interactions = [];
       if (intake.drug_interactions) {
         try {
-          interactions =
-            typeof intake.drug_interactions === 'string'
-              ? JSON.parse(intake.drug_interactions)
-              : Array.isArray(intake.drug_interactions)
-                ? intake.drug_interactions
-                : [];
-        } catch (parseErr) {
-          console.warn('intake', intake.id, 'drug_interactions parse failed', parseErr);
-        }
+          interactions = typeof intake.drug_interactions === 'string'
+            ? JSON.parse(intake.drug_interactions)
+            : (Array.isArray(intake.drug_interactions) ? intake.drug_interactions : []);
+        } catch (e) {}
       }
+      // Re-sort defensively
+      interactions.sort((a, b) => {
+        const ai = _SEV_ORDER.indexOf((a.severity || 'unknown').toLowerCase());
+        const bi = _SEV_ORDER.indexOf((b.severity || 'unknown').toLowerCase());
+        return ai - bi;
+      });
+
       const counselingPoints = parseCounselingPoints(intake.counseling_points || '');
       const ctx = _parsePatientContext(intake.notes);
       const allergyWarnings = computeAllergyWarnings(intake.patient_allergies, intake.medications, intake.current_medications);
       const lifestyleWarnings = computeLifestyleWarnings(ctx, intake.medications, intake.current_medications);
-
-      const highestSev = interactions.reduce((acc, i) => {
-        const order = ['contraindicated','major','moderate','minor','unknown'];
-        const idx = order.indexOf((i.severity||'unknown').toLowerCase());
-        return idx < acc ? idx : acc;
-      }, 99);
-      const overallRisk = highestSev <= 1 ? 'High' : highestSev === 2 ? 'Moderate' : highestSev === 3 ? 'Low' : interactions.length ? 'Low' : 'None';
+      const overallRisk = overallRiskFromInteractions(interactions);
       const rc = _riskClass(overallRisk);
+      const ri = _riskIcon(overallRisk);
+
+      const stageDisplay = esc((intake.stage_display || intake.status || '').replace('_', ' '));
 
       return `
-            <div class="intake-card">
-              <div class="row-between">
-                <div>
-                  <strong>#${intake.id} ${fmt(intake.patient_name)}</strong>
-                  <div class="muted">Created: ${new Date(intake.created_at).toLocaleString()}</div>
-                </div>
-                <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                  <span class="risk-badge ${rc}">Risk: ${overallRisk}</span>
-                  <span class="status-badge">${fmt(intake.stage_display || intake.status).replace('_', ' ')}</span>
-                  ${intake.assigned_to ? `<span class="pill" title="Assigned pharmacist / tech">${fmt(intake.assigned_to)}</span>` : ''}
-                </div>
-              </div>
-
-              <div class="workflow-track" title="Prescription workflow (Kroll-style)">
-                ${renderWorkflowTrack(intake.status)}
-              </div>
-              ${intake.workflow_hint ? `<div class="muted" style="font-size:.78rem; margin-top:4px;">${intake.workflow_hint}</div>` : ''}
-              ${intake.pickup_ready ? `
-              <div class="pickup-notify-box">
-                <div class="pickup-banner" style="margin-top:0;">✓ Ready for patient pickup</div>
-                <div class="label-row">Notify patient</div>
-                <p class="muted" style="font-size:.78rem; margin:0 0 8px; line-height:1.45;">Use desktop alert, copy the text, or open SMS / email. Add the patient’s phone or address in your app when prompted.</p>
-                <div class="pickup-notify-actions">
-                  <button type="button" class="btn secondary" onclick="notifyPickupBrowser(${intake.id}, ${JSON.stringify((intake.patient_name || ''))})">Desktop alert</button>
-                  <button type="button" class="btn secondary" onclick="copyPickupMessage(${intake.id}, ${JSON.stringify((intake.patient_name || ''))})">Copy message</button>
-                  <button type="button" class="btn secondary" onclick="openPickupSms(${intake.id}, ${JSON.stringify((intake.patient_name || ''))})">Open SMS</button>
-                  <button type="button" class="btn secondary" onclick="openPickupEmail(${intake.id}, ${JSON.stringify((intake.patient_name || ''))})">Email draft</button>
-                </div>
-              </div>` : ''}
-
-              <div class="section">
-                <div><strong>Patient:</strong> Age ${fmt(intake.patient_age)}${intake.patient_gender ? ` • ${intake.patient_gender.charAt(0).toUpperCase() + intake.patient_gender.slice(1)}` : ''} • Allergies: ${fmt(intake.patient_allergies)}</div>
-                <div><strong>Assigned to:</strong> ${intake.assigned_to ? fmt(intake.assigned_to) : '<span class="muted">Unassigned</span>'}</div>
-                <div><strong>New meds:</strong> ${fmt(intake.medications)}</div>
-                <div><strong>Current meds:</strong> ${fmt(intake.current_medications)}</div>
-              </div>
-
-              <div class="section">
-                <strong>Drug Interaction Results</strong>
-                ${renderInteractionSection(interactions)}
-              </div>
-
-              ${allergyWarnings.length ? `
-              <div class="section">
-                <strong style="color:var(--danger);">⚠ Allergy Warnings</strong>
-                <div class="warn-box allergy" style="margin-top:6px;">
-                  ${allergyWarnings.map(w => `<div style="margin-bottom:3px;">${w}</div>`).join('')}
-                </div>
-              </div>` : ''}
-
-              ${lifestyleWarnings.length ? `
-              <div class="section">
-                <strong style="color:var(--warning);">⚠ Lifestyle Cautions</strong>
-                <div class="warn-box lifestyle" style="margin-top:6px;">
-                  ${lifestyleWarnings.map(w => `<div style="margin-bottom:3px;">${w}</div>`).join('')}
-                </div>
-              </div>` : ''}
-
-              <div class="section">
-                <div class="row-between" style="align-items:center; margin-bottom:6px;">
-                  <strong>Counseling Points</strong>
-                  <button type="button" class="btn secondary" style="font-size:.78rem;padding:6px 10px;" onclick="openCounselingEditor(${intake.id})">Edit counseling</button>
-                </div>
-                ${counselingPoints.length
-                  ? `<ul class="mini-list">${counselingPoints.map(p => `<li>${p}</li>`).join('')}</ul>`
-                  : `<div class="muted">No structured counseling points extracted.</div>`}
-              </div>
-
-              <div class="actions">
-                ${getNextTransitions(intake.status).map(next => `<button class="btn success" onclick="updateStatus(${intake.id}, '${next}')">Move to ${next.replace('_', ' ')}</button>`).join('')}
-                ${intake.status === 'filled' ? `<button class="btn warning" onclick="dispenseMedication(${intake.id})">Dispense</button>` : ''}
-                <button class="btn secondary" onclick="assignIntake(${intake.id})">Assign</button>
-                <button class="btn warning" onclick="recheckInteractions(${intake.id})">Re-check</button>
-              </div>
+        <article class="intake-card" data-intake-id="${intake.id}" data-testid="intake-card-${intake.id}">
+          <div class="row-between">
+            <div class="id-block">
+              <span class="id-line">Order · #${intake.id}</span>
+              <span class="name" data-testid="intake-name-${intake.id}">${esc(intake.patient_name || '—')}</span>
+              <span class="meta">Created ${new Date(intake.created_at).toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' })}</span>
             </div>
-          `;
+            <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+              <span class="risk-badge ${rc}" data-testid="risk-badge-${intake.id}"><i data-lucide="${ri}"></i> Risk: ${esc(overallRisk)}</span>
+              <span class="badge status" data-testid="status-badge-${intake.id}"><i data-lucide="circle-dot"></i>${stageDisplay}</span>
+              ${intake.assigned_to ? `<span class="pill" title="Assigned to"><i data-lucide="user-round"></i>${esc(intake.assigned_to)}</span>` : ''}
+            </div>
+          </div>
+
+          <div class="stepper">${renderWorkflowTrack(intake.status)}</div>
+          ${intake.workflow_hint ? `<div class="workflow-hint"><i data-lucide="arrow-right-circle"></i>${esc(intake.workflow_hint)}</div>` : ''}
+
+          ${intake.pickup_ready ? `
+            <div class="pickup-callout">
+              <div class="pickup-head"><i data-lucide="package-check"></i>Ready for patient pickup</div>
+              <div class="pickup-msg">Notify the patient that their prescription is ready. Use desktop alert, copy the message, or open SMS / email.</div>
+              <div class="pickup-actions">
+                <button type="button" class="btn sm" onclick="notifyPickupBrowser(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-desktop-${intake.id}"><i data-lucide="bell-ring"></i>Desktop alert</button>
+                <button type="button" class="btn sm" onclick="copyPickupMessage(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-copy-${intake.id}"><i data-lucide="clipboard-copy"></i>Copy</button>
+                <button type="button" class="btn sm" onclick="openPickupSms(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-sms-${intake.id}"><i data-lucide="message-square"></i>SMS</button>
+                <button type="button" class="btn sm" onclick="openPickupEmail(${intake.id}, ${JSON.stringify(intake.patient_name || '')})" data-testid="pickup-email-${intake.id}"><i data-lucide="mail"></i>Email</button>
+              </div>
+            </div>` : ''}
+
+          <dl class="data-row">
+            <dt>Patient</dt>
+            <dd>Age ${esc(fmt(intake.patient_age))}${intake.patient_gender ? ` · ${esc(intake.patient_gender.charAt(0).toUpperCase() + intake.patient_gender.slice(1))}` : ''} · Allergies: ${esc(fmt(intake.patient_allergies))}</dd>
+            <dt>Assigned</dt>
+            <dd class="${intake.assigned_to ? '' : 'muted'}">${intake.assigned_to ? esc(intake.assigned_to) : 'Unassigned'}</dd>
+            <dt>New meds</dt>
+            <dd>${esc(fmt(intake.medications))}</dd>
+            <dt>Current</dt>
+            <dd>${esc(fmt(intake.current_medications))}</dd>
+          </dl>
+
+          <div class="ix-section">
+            <div class="section-head"><i data-lucide="shield-alert"></i>Drug interactions <span class="count-pill">${interactions.length}</span></div>
+            ${renderInteractionsList(interactions)}
+          </div>
+
+          ${allergyWarnings.length ? `
+          <div class="ix-section">
+            <div class="section-head"><i data-lucide="ban"></i>Allergy warnings <span class="count-pill">${allergyWarnings.length}</span></div>
+            <div class="warn-box allergy"><i data-lucide="ban"></i><ul>${allergyWarnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>
+          </div>` : ''}
+
+          ${lifestyleWarnings.length ? `
+          <div class="ix-section">
+            <div class="section-head"><i data-lucide="heart-pulse"></i>Lifestyle cautions <span class="count-pill">${lifestyleWarnings.length}</span></div>
+            <div class="warn-box lifestyle"><i data-lucide="heart-pulse"></i><ul>${lifestyleWarnings.map(w => `<li>${esc(w)}</li>`).join('')}</ul></div>
+          </div>` : ''}
+
+          <div class="ix-section">
+            <div class="row-between" style="margin-bottom:4px;">
+              <div class="section-head" style="margin-bottom:0;"><i data-lucide="message-circle"></i>Counseling points <span class="count-pill">${counselingPoints.length}</span></div>
+              <button type="button" class="btn ghost xs" onclick="openCounselingEditor(${intake.id})" data-testid="edit-counseling-${intake.id}"><i data-lucide="pencil"></i>Edit</button>
+            </div>
+            ${counselingPoints.length
+              ? `<ul class="counseling-list">${counselingPoints.map(p => `<li>${esc(p)}</li>`).join('')}</ul>`
+              : `<div style="font-size:0.86rem; color:var(--text-muted);">No structured counseling points extracted.</div>`}
+          </div>
+
+          <div class="audit-trail" id="audit-${intake.id}" data-testid="audit-${intake.id}">
+            <div class="audit-head"><i data-lucide="history"></i>Audit trail</div>
+            <div class="skel-line w-80"></div>
+            <div class="skel-line w-50"></div>
+          </div>
+
+          <div class="actions">
+            ${getNextTransitions(intake.status).map(next => `<button class="btn primary sm" onclick="updateStatus(${intake.id}, '${next}')" data-testid="advance-${intake.id}-${next}"><i data-lucide="arrow-right"></i>Move to ${esc(next.replace('_', ' '))}</button>`).join('')}
+            ${intake.status === 'filled' ? `<button class="btn success sm" onclick="dispenseMedication(${intake.id})" data-testid="dispense-${intake.id}"><i data-lucide="check"></i>Dispense</button>` : ''}
+            <button class="btn sm" onclick="assignIntake(${intake.id})" data-testid="assign-${intake.id}"><i data-lucide="user-plus"></i>Assign</button>
+            <button class="btn warning sm" onclick="recheckInteractions(${intake.id})" data-testid="recheck-${intake.id}"><i data-lucide="refresh-cw"></i>Re-check</button>
+          </div>
+        </article>
+      `;
+    }
+
+    function renderIntakeListSkeleton(container) {
+      const skel = `
+        <div class="skel-card">
+          <div class="skel-line w-30 tall"></div>
+          <div class="skel-line w-100"></div>
+          <div class="skel-line w-80"></div>
+          <div class="skel-line w-50"></div>
+        </div>`;
+      container.innerHTML = skel + skel;
+    }
+
+    function renderEmptyState(container, opts = {}) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon"><i data-lucide="${opts.icon || 'inbox'}"></i></div>
+          <h3>${esc(opts.title || 'No intakes yet')}</h3>
+          <p>${esc(opts.message || 'Create a new intake from the form on the left to begin.')}</p>
+        </div>`;
+      initIcons();
+    }
+
+    function renderErrorState(container, message) {
+      container.innerHTML = `
+        <div class="error-state">
+          <i data-lucide="alert-octagon"></i>
+          <div><strong>Could not load data</strong><div>${esc(message || 'Please retry shortly.')}</div></div>
+        </div>`;
+      initIcons();
     }
 
     async function loadIntakes() {
-      const status = document.getElementById('status-filter').value;
-      const url = status ? `${API_BASE}/intakes?status=${status}` : `${API_BASE}/intakes`;
       const list = document.getElementById('intake-list');
-
+      renderIntakeListSkeleton(list);
+      const url = activeStatusFilter
+        ? `${API_BASE}/intakes?status=${activeStatusFilter}`
+        : `${API_BASE}/intakes`;
       try {
         const res = await fetchWithTimeout(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const intakes = await res.json();
-
         if (!intakes.length) {
-          list.innerHTML = '<div class="muted">No intakes found.</div>';
+          renderEmptyState(list, {
+            icon: 'inbox',
+            title: activeStatusFilter ? 'No intakes match this filter' : 'No intakes yet',
+            message: activeStatusFilter
+              ? 'Try a different status, or clear the filter to see all intakes.'
+              : 'Create a new intake from the form on the left to begin.',
+          });
           return;
         }
-
-        list.innerHTML = intakes.map((intake) => buildIntakeCardHTML(intake)).join('');
+        list.innerHTML = intakes.map(buildIntakeCardHTML).join('');
+        initIcons();
+        intakes.forEach(i => {
+          const el = document.getElementById(`audit-${i.id}`);
+          if (el) loadAuditTrail(i.id, el);
+        });
       } catch (e) {
-        list.innerHTML = `<div class="muted">Error loading intakes: ${e.message}</div>`;
+        renderErrorState(list, e.message);
       }
     }
 
+    /* ============ Patient search ============ */
     let patientSearchDebounce = null;
     async function runPatientSearch() {
       const input = document.getElementById('patient-search-input');
+      const section = document.getElementById('patient-search-results-section');
       const out = document.getElementById('patient-search-results');
       if (!input || !out) return;
       const q = input.value.trim();
       if (!q) {
-        out.className = 'muted';
-        out.style.marginTop = '10px';
-        out.innerHTML = 'Type a patient name to look up intakes.';
+        section.style.display = 'none';
+        out.innerHTML = '';
         return;
       }
-      out.className = '';
-      out.style.marginTop = '10px';
-      out.innerHTML = '<div class="muted">Searching…</div>';
+      section.style.display = '';
+      renderIntakeListSkeleton(out);
       try {
         const url = `${API_BASE}/intakes?search=${encodeURIComponent(q)}&limit=50`;
         const res = await fetchWithTimeout(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const intakes = await res.json();
         if (!intakes.length) {
-          out.innerHTML = '<div class="muted">No intakes match that name.</div>';
+          renderEmptyState(out, {
+            icon: 'search-x',
+            title: 'No matching intakes',
+            message: `No intakes match "${q}". Try a different spelling.`,
+          });
           return;
         }
-        out.innerHTML = intakes.map((intake) => buildIntakeCardHTML(intake)).join('');
+        out.innerHTML = intakes.map(buildIntakeCardHTML).join('');
+        initIcons();
+        intakes.forEach(i => {
+          const el = document.getElementById(`audit-${i.id}`);
+          if (el) loadAuditTrail(i.id, el);
+        });
       } catch (e) {
-        out.innerHTML = `<div class="muted">Search failed: ${e.message}</div>`;
+        renderErrorState(out, e.message);
       }
     }
-
     function schedulePatientSearch() {
       clearTimeout(patientSearchDebounce);
       patientSearchDebounce = setTimeout(runPatientSearch, 350);
     }
-
     function refreshPatientSearchIfActive() {
       const el = document.getElementById('patient-search-input');
       if (el && el.value.trim()) runPatientSearch();
     }
 
-    async function logoutSession() {
-      try {
-        await fetch(`${API_BASE}/api/auth/logout`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-      } catch (e) {
-        /* still leave workspace */
-      }
-      window.location.href = '/login';
-    }
-
+    /* ============ Actions ============ */
     async function updateStatus(intakeId, status) {
-      const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/status`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(err.detail || 'Status update failed');
-        return;
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: 'Could not update status', message: err.detail || `HTTP ${res.status}`, type: 'error' });
+          return;
+        }
+        toast({ title: 'Status updated', message: `Moved to ${statusLabel(status)}.`, type: 'success' });
+        await loadIntakes();
+        await loadStatistics();
+        renderFilterBar();
+        refreshPatientSearchIfActive();
+      } catch (e) {
+        toast({ title: 'Network error', message: e.message, type: 'error' });
       }
-      loadIntakes();
-      loadStatistics();
-      refreshPatientSearchIfActive();
     }
-
     async function assignIntake(intakeId) {
       const user = (prompt('Assign to user (name or initials):') || '').trim();
       if (!user) return;
       try {
         const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/assign`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user })
         });
         if (!res.ok) {
-          let detail = 'Assign failed';
-          try {
-            const err = await res.json();
-            if (err.detail) {
-              detail = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
-            }
-          } catch (e) {}
-          alert(detail);
+          const err = await res.json().catch(() => ({}));
+          let detail = typeof err.detail === 'string' ? err.detail : 'Assign failed';
+          toast({ title: 'Assign failed', message: detail, type: 'error' });
           return;
         }
+        toast({ title: 'Assigned', message: `Now assigned to ${user}.`, type: 'success' });
         await loadIntakes();
         await loadStatistics();
         refreshPatientSearchIfActive();
       } catch (e) {
-        alert((e && e.message) || 'Assign failed (network error).');
+        toast({ title: 'Network error', message: e.message || 'Assign failed', type: 'error' });
       }
     }
-
     async function dispenseMedication(intakeId) {
       if (!confirm('Mark as dispensed?')) return;
-      const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/dispense`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dispensed: 'yes' })
-      });
-      if (res.ok) {
-        loadIntakes();
-        loadStatistics();
-        refreshPatientSearchIfActive();
-      }
-    }
-
-    async function recheckInteractions(intakeId) {
-      if (!confirm('Re-check drug interactions? This will re-run interaction detection and update counseling for this intake.')) {
-        return;
-      }
       try {
-        const res = await fetchWithTimeout(
-          `${API_BASE}/intakes/${intakeId}/check-interactions`,
-          { method: 'POST' },
-          120000
-        );
+        const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/dispense`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ dispensed: 'yes' })
+        });
         if (!res.ok) {
-          let detail = 'Re-check failed';
-          try {
-            const err = await res.json();
-            if (err.detail) {
-              detail = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
-            }
-          } catch (e) {}
-          alert(detail);
+          const err = await res.json().catch(() => ({}));
+          toast({ title: 'Dispense failed', message: err.detail || `HTTP ${res.status}`, type: 'error' });
           return;
         }
+        toast({ title: 'Dispensed', message: `Order #${intakeId} dispensed.`, type: 'success' });
+        await loadIntakes();
+        await loadStatistics();
+        renderFilterBar();
+        refreshPatientSearchIfActive();
+      } catch (e) {
+        toast({ title: 'Network error', message: e.message, type: 'error' });
+      }
+    }
+    async function recheckInteractions(intakeId) {
+      if (!confirm('Re-check drug interactions? This will re-run interaction detection and update counseling.')) return;
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/check-interactions`, { method: 'POST' }, 120000);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: 'Re-check failed', message: typeof err.detail === 'string' ? err.detail : 'Try again shortly.', type: 'error' });
+          return;
+        }
+        toast({ title: 'Re-checked', message: 'Interactions and counseling refreshed.', type: 'success' });
         await loadIntakes();
         await loadStatistics();
         refreshPatientSearchIfActive();
       } catch (e) {
-        const msg =
-          e && e.name === 'AbortError'
-            ? 'Re-check timed out. Try again or refresh the page.'
-            : (e && e.message) || 'Re-check failed (network error).';
-        alert(msg);
+        const msg = e?.name === 'AbortError' ? 'Re-check timed out. Try again.' : (e.message || 'Network error');
+        toast({ title: 'Re-check failed', message: msg, type: 'error' });
       }
     }
 
+    /* ============ Counseling modal ============ */
     let counselingModalIntakeId = null;
-
     async function openCounselingEditor(intakeId) {
       try {
         const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}`);
@@ -1228,55 +2046,51 @@
         const intake = await res.json();
         counselingModalIntakeId = intakeId;
         const name = intake.patient_name ? ` — ${intake.patient_name}` : '';
-        document.getElementById('counseling-modal-title').textContent = `Edit counseling (#${intakeId}${name})`;
+        document.getElementById('counseling-modal-title').textContent = `Edit counseling · #${intakeId}${name}`;
         document.getElementById('counseling-modal-text').value = intake.counseling_points || '';
         document.getElementById('counseling-modal').classList.add('open');
         setTimeout(() => document.getElementById('counseling-modal-text').focus(), 50);
       } catch (e) {
-        alert(e.message || 'Failed to open editor');
+        toast({ title: 'Open failed', message: e.message || 'Could not open counseling editor.', type: 'error' });
       }
     }
-
     function closeCounselingModal() {
       document.getElementById('counseling-modal').classList.remove('open');
       counselingModalIntakeId = null;
     }
-
     async function saveCounselingFromModal() {
       const id = counselingModalIntakeId;
       if (!id) return;
       const text = document.getElementById('counseling-modal-text').value;
-      const res = await fetchWithTimeout(`${API_BASE}/intakes/${id}/counseling`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ counseling_points: text }),
-      });
-      if (!res.ok) {
-        let msg = 'Save failed';
-        try {
-          const err = await res.json();
-          msg = err.detail || msg;
-        } catch (e) {}
-        alert(msg);
-        return;
-      }
-      closeCounselingModal();
-      loadIntakes();
-      refreshPatientSearchIfActive();
-    }
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && document.getElementById('counseling-modal').classList.contains('open')) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/intakes/${id}/counseling`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ counseling_points: text }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast({ title: 'Save failed', message: err.detail || `HTTP ${res.status}`, type: 'error' });
+          return;
+        }
+        toast({ title: 'Counseling saved', type: 'success' });
         closeCounselingModal();
+        await loadIntakes();
+        refreshPatientSearchIfActive();
+      } catch (e) {
+        toast({ title: 'Save failed', message: e.message, type: 'error' });
       }
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && document.getElementById('counseling-modal').classList.contains('open')) closeCounselingModal();
     });
 
+    /* ============ Form submit ============ */
     document.getElementById('intake-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-
       const submitBtn = document.getElementById('submit-btn');
+      const submitBtnText = document.getElementById('submit-btn-text');
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Creating…';
+      submitBtnText.textContent = 'Creating…';
 
       const notesBase = document.getElementById('notes').value || '';
       const smoking = document.getElementById('smoking').value || '';
@@ -1294,7 +2108,6 @@
         current_medications: document.getElementById('current-medications').value || null,
         notes: `${notesBase}${buildPatientContextString()}`.trim() || null,
       };
-
       const evalPayload = {
         ...createPayload,
         smoking: smoking || null,
@@ -1314,55 +2127,83 @@
 
       try {
         const createRes = await fetchWithTimeout(`${API_BASE}/intakes`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(createPayload),
         }, 45000);
-
         if (!createRes.ok) {
-          const err = await createRes.json();
+          const err = await createRes.json().catch(() => ({}));
           throw new Error(err.detail || 'Create failed');
         }
-
-        submitBtn.textContent = 'Analyzing…';
-
+        submitBtnText.textContent = 'Analyzing…';
         const evalRes = await fetchWithTimeout(`${API_BASE}/intakes/evaluate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(evalPayload),
         }, 15000);
-
         loading.style.display = 'none';
         if (evalRes.ok) {
           content.innerHTML = renderEvaluateResult(await evalRes.json());
+          initIcons();
         } else {
-          content.innerHTML = '<div class="muted">Analysis unavailable — see intake card below for interaction details.</div>';
+          content.innerHTML = `<div class="error-state"><i data-lucide="alert-octagon"></i><div><strong>Analysis unavailable</strong><div>See intake card below for details.</div></div></div>`;
+          initIcons();
         }
 
         document.getElementById('intake-form').reset();
-        loadIntakes();
-        loadStatistics();
+        toast({ title: 'Intake created', message: `Order #${(await createRes.clone().json()).id || ''} added.`, type: 'success' });
+        await loadIntakes();
+        await loadStatistics();
+        renderFilterBar();
         refreshPatientSearchIfActive();
       } catch (err) {
         loading.style.display = 'none';
-        content.innerHTML = `<div class="muted">Error: ${err.message}</div>`;
-        alert(err.message);
+        content.innerHTML = `<div class="error-state"><i data-lucide="alert-octagon"></i><div><strong>Error</strong><div>${esc(err.message)}</div></div></div>`;
+        initIcons();
+        toast({ title: 'Could not create intake', message: err.message, type: 'error' });
       } finally {
         submitBtn.disabled = false;
-        submitBtn.textContent = 'Create Intake';
+        submitBtnText.textContent = 'Create intake';
       }
     });
 
-    document.getElementById('status-filter').addEventListener('change', loadIntakes);
+    /* ============ Logout & user chip ============ */
+    async function logoutSession() {
+      try { await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' }); }
+      catch (e) {}
+      window.location.href = '/login';
+    }
+    async function loadCurrentUser() {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/api/auth/me`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.user && data.user.username) {
+          document.getElementById('user-name').textContent = data.user.username;
+          document.getElementById('user-avatar').textContent = (data.user.username[0] || '?').toUpperCase();
+        } else {
+          document.getElementById('user-name').textContent = 'Guest';
+          document.getElementById('user-avatar').textContent = '?';
+        }
+      } catch (e) {
+        document.getElementById('user-name').textContent = 'Guest';
+      }
+    }
 
+    /* ============ Init ============ */
     document.getElementById('logout-btn').addEventListener('click', logoutSession);
     document.getElementById('patient-search-input').addEventListener('input', schedulePatientSearch);
+    document.getElementById('clear-search-btn').addEventListener('click', () => {
+      const i = document.getElementById('patient-search-input');
+      i.value = '';
+      runPatientSearch();
+    });
 
-    setInterval(() => { loadStatistics(); loadIntakes(); refreshPatientSearchIfActive(); }, 45000);
+    setInterval(() => { loadStatistics().then(renderFilterBar); loadIntakes(); refreshPatientSearchIfActive(); }, 45000);
 
     (async function init() {
-      loadStatistics();
-      loadIntakes();
+      initIcons();
+      renderStatsSkeleton();
+      renderFilterBar();
+      await Promise.all([loadStatistics().then(renderFilterBar), loadIntakes(), loadCurrentUser()]);
     })();
   </script>
 </body>

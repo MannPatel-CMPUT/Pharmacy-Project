@@ -4,6 +4,14 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+# Load /app/backend/.env (JWT_SECRET, DATABASE_URL, etc.) BEFORE importing the app.
+try:
+    from dotenv import load_dotenv  # type: ignore
+
+    load_dotenv(Path(__file__).resolve().parent / ".env")
+except Exception:
+    pass
+
 # Make the project's fastapi/ package importable (it contains main.py, routers/, etc.)
 _FASTAPI_DIR = Path(__file__).resolve().parent.parent / "fastapi"
 if str(_FASTAPI_DIR) not in sys.path:

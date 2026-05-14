@@ -148,7 +148,14 @@ def create_token(user_id: int, username: str) -> str:
 
 def decode_token(token: str) -> Optional[dict[str, Any]]:
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+        return jwt.decode(
+            token,
+            JWT_SECRET,
+            algorithms=[JWT_ALG],
+            # Node portal signs `sub` as a number; PyJWT >=2.10 enforces string `sub`.
+            # We only rely on `u` (username), so relax that one check.
+            options={"verify_sub": False},
+        )
     except jwt.PyJWTError:
         return None
 

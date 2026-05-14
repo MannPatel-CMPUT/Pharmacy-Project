@@ -13,7 +13,8 @@
     "cookie-parser": "^1.4.7",
     "express": "^4.21.2",
     "http-proxy-middleware": "^3.0.3",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^1.14.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

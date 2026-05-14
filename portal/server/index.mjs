@@ -48,6 +48,28 @@ const FASTAPI_URL = process.env.FASTAPI_URL || "http://127.0.0.1:8000";
 const app = express();
 app.disable("x-powered-by");
 app.use(cookieParser());
+
+function shouldProxy(pathname) {
+  return (
+    pathname === "/intakes" ||
+    pathname.startsWith("/intakes/") ||
+    pathname === "/health" ||
+    pathname === "/config" ||
+    pathname.startsWith("/config/")
+  );
+}
+
+const apiProxy = createProxyMiddleware({
+  target: FASTAPI_URL,
+  changeOrigin: true,
+});
+
+// Proxy BEFORE express.json() so the request body stream is not consumed.
+app.use((req, res, next) => {
+  if (shouldProxy(req.path)) return apiProxy(req, res, next);
+  return next();
+});
+
 app.use(express.json());
 
 function signToken(payload) {
@@ -178,26 +200,6 @@ app.get("/workspace", requireAuthHtml, (req, res) => {
   }
   res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
   res.sendFile(path.resolve(pharmacyHtmlPath));
-});
-
-function shouldProxy(pathname) {
-  return (
-    pathname === "/intakes" ||
-    pathname.startsWith("/intakes/") ||
-    pathname === "/health" ||
-    pathname === "/config" ||
-    pathname.startsWith("/config/")
-  );
-}
-
-const apiProxy = createProxyMiddleware({
-  target: FASTAPI_URL,
-  changeOrigin: true,
-});
-
-app.use((req, res, next) => {
-  if (shouldProxy(req.path)) return apiProxy(req, res, next);
-  return next();
 });
 
 async function mountFrontend() {

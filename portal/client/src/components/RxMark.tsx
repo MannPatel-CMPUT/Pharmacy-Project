@@ -1,36 +1,21 @@
-export function RxMark({ size = 72 }: { size?: number }) {
+export function RxMark({ size = 24 }: { size?: number }) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 64 64"
+      viewBox="0 0 24 24"
       fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden
-      className="rx-svg"
     >
-      <defs>
-        <linearGradient id="rxGrad" x1="12" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#5ae8c5" />
-          <stop offset="0.45" stopColor="#3d9cf0" />
-          <stop offset="1" stopColor="#7c5cff" />
-        </linearGradient>
-        <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur stdDeviation="2.5" result="b" />
-          <feMerge>
-            <feMergeNode in="b" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <rect x="10" y="10" width="44" height="44" rx="14" stroke="url(#rxGrad)" strokeWidth="2.2" fill="rgba(10,16,28,0.55)" filter="url(#glow)" />
-      <path
-        d="M22 22h8c5 0 8 3.2 8 7.5S35 37 30 37h-8M30 22v20M38 30h10M38 38h10"
-        stroke="url(#rxGrad)"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {/* Stylized Rx — straight, calm, clinical */}
+      <path d="M7 4h4.5a3.5 3.5 0 0 1 0 7H7" />
+      <path d="M7 4v16" />
+      <path d="M10 11l6 9" />
+      <path d="M14 14l-3.5 -3.5" />
     </svg>
   );
 }
