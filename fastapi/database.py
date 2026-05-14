@@ -142,6 +142,25 @@ class GeneratedCounselingLog(Base):
     intake = relationship("Intake", back_populates="counseling_logs")
 
 
+class DdiCsvIngestManifest(Base):
+    """
+    Single-row (id=1) marker: bundled DDII CSV was fully ingested for a given file fingerprint.
+
+    Prevents skipping re-import after a partial ingest (crash mid-file) or when the CSV file
+    is replaced without changing ``DDI_CSV_FORCE_RELOAD``.
+    """
+
+    __tablename__ = "ddi_csv_ingest_manifest"
+
+    id = Column(Integer, primary_key=True)
+    csv_path = Column(Text, nullable=False)
+    file_size = Column(Integer, nullable=False)
+    file_mtime = Column(Integer, nullable=False)
+    ingest_complete = Column(Integer, nullable=False, default=0)
+    last_ingest_stats = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -171,15 +190,23 @@ def _resolve_ddii_csv_path() -> str | None:
     return None
 
 
+def _ddii_csv_fingerprint(csv_path: str) -> tuple[str, int, int]:
+    """Resolved path, size in bytes, mtime (seconds) for change detection."""
+    p = Path(csv_path).expanduser().resolve()
+    st = p.stat()
+    return str(p), int(st.st_size), int(st.st_mtime)
+
+
 def _load_ddii_csv_if_configured() -> None:
     """
-    One-time load of db_drug_interactions.csv into drug_interactions.
+    Load ``db_drug_interactions.csv`` into ``drug_interactions`` when needed.
 
-    Set ``DRUG_INTERACTIONS_CSV`` to the absolute path of your CSV, or place the file at
-    ``fastapi/data/db_drug_interactions.csv``. Skips if that source is already present.
+    Skips only when a manifest row (id=1) records a **completed** ingest for the **same**
+    resolved path, size, and mtime as the CSV on disk, and at least one interaction row exists.
 
-    Set ``DDI_CSV_FORCE_RELOAD=1`` (once) to delete all rows with source ``db_drug_interactions_csv``
-    and re-import from the configured file (slow on large CSVs — unset after a successful run).
+    Re-imports (after clearing CSV-backed rows) when: the CSV file changed, ingest never
+    finished (``ingest_complete=0``), manifest is missing, ``DDI_CSV_FORCE_RELOAD=1``, or
+    manifest claims success but all CSV rows were removed manually.
     """
     path = _resolve_ddii_csv_path()
     if not path:
@@ -187,30 +214,94 @@ def _load_ddii_csv_if_configured() -> None:
 
     from services.ddi_csv_ingestion import SOURCE_TAG, ingest_ddii_csv_file
 
+    resolved, size, mtime = _ddii_csv_fingerprint(path)
     force = os.getenv("DDI_CSV_FORCE_RELOAD", "").strip().lower() in ("1", "true", "yes")
-    if force:
+
+    def _manifest_ok_for_skip(m: DdiCsvIngestManifest | None, row_count: int) -> bool:
+        if force or m is None or m.ingest_complete != 1:
+            return False
+        if m.csv_path != resolved or m.file_size != size or m.file_mtime != mtime:
+            return False
+        return row_count > 0
+
+    try:
         with SessionLocal() as db:
+            man = db.get(DdiCsvIngestManifest, 1)
+            n = db.query(DrugInteraction).filter(DrugInteraction.source == SOURCE_TAG).count()
+            if _manifest_ok_for_skip(man, n):
+                logger.info(
+                    "Drug interaction CSV unchanged and fully ingested (%s pairs); skipping",
+                    n,
+                )
+                return
+
+            if force:
+                logger.info("DDI_CSV_FORCE_RELOAD: clearing DDII manifest and CSV-backed rows")
+            elif man is None:
+                logger.info("DDII ingest manifest missing; clearing any partial CSV-backed rows")
+            elif man.ingest_complete != 1:
+                logger.info("DDII ingest was incomplete last run; clearing CSV-backed rows")
+            elif man.csv_path != resolved or man.file_size != size or man.file_mtime != mtime:
+                logger.info(
+                    "DDII CSV file changed (was %s bytes mtime %s; now %s bytes mtime %s); reloading",
+                    man.file_size,
+                    man.file_mtime,
+                    size,
+                    mtime,
+                )
+            elif n == 0:
+                logger.warning(
+                    "DDII manifest reports success but no CSV rows in DB; re-importing from file"
+                )
+
             deleted = (
                 db.query(DrugInteraction)
                 .filter(DrugInteraction.source == SOURCE_TAG)
                 .delete(synchronize_session=False)
             )
+            db.query(DdiCsvIngestManifest).filter(DdiCsvIngestManifest.id == 1).delete(
+                synchronize_session=False
+            )
+            now = datetime.now(timezone.utc)
+            db.merge(
+                DdiCsvIngestManifest(
+                    id=1,
+                    csv_path=resolved,
+                    file_size=size,
+                    file_mtime=mtime,
+                    ingest_complete=0,
+                    last_ingest_stats=None,
+                    updated_at=now,
+                )
+            )
             db.commit()
             logger.info(
-                "DDI_CSV_FORCE_RELOAD: removed %s drug_interactions rows (source=%s)",
+                "Prepared DDII CSV ingest (removed %s old CSV-backed interaction rows)",
                 deleted,
-                SOURCE_TAG,
             )
 
-    with SessionLocal() as db:
-        n = db.query(DrugInteraction).filter(DrugInteraction.source == SOURCE_TAG).count()
-        if n > 0:
-            logger.info("Drug interaction CSV already loaded (%s pairs), skipping ingest", n)
-            return
-
-    try:
         with SessionLocal() as db:
             stats = ingest_ddii_csv_file(db, path)
+            now = datetime.now(timezone.utc)
+            db.merge(
+                DdiCsvIngestManifest(
+                    id=1,
+                    csv_path=resolved,
+                    file_size=size,
+                    file_mtime=mtime,
+                    ingest_complete=1,
+                    last_ingest_stats=json.dumps(
+                        {
+                            "inserted": stats.get("inserted"),
+                            "skipped": stats.get("skipped"),
+                            "total_rows": stats.get("total_rows"),
+                            "failed": stats.get("failed"),
+                        }
+                    ),
+                    updated_at=now,
+                )
+            )
+            db.commit()
         logger.info(
             "Loaded drug interactions CSV: inserted=%s skipped=%s rows=%s",
             stats.get("inserted"),
