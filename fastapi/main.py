@@ -1,6 +1,16 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+_fastapi_dir = Path(__file__).resolve().parent
+_repo_root = _fastapi_dir.parent
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv(_repo_root / ".env", override=False)
+    load_dotenv(_fastapi_dir / ".env", override=False)
+except ImportError:
+    pass
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
@@ -14,7 +24,7 @@ from services import auth_service
 import os
 
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
+_REPO_ROOT = _repo_root
 _FRONTEND = _REPO_ROOT / "frontend"
 # Optional: absolute path to portal Vite output (default: repo/portal/client/dist)
 _PORTAL_DIST = Path(

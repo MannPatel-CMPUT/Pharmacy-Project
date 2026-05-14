@@ -157,12 +157,30 @@ def _load_ddii_csv_if_configured() -> None:
 
     Set ``DRUG_INTERACTIONS_CSV`` to the absolute path of your CSV, or place the file at
     ``fastapi/data/db_drug_interactions.csv``. Skips if that source is already present.
+
+    Set ``DDI_CSV_FORCE_RELOAD=1`` (once) to delete all rows with source ``db_drug_interactions_csv``
+    and re-import from the configured file (slow on large CSVs — unset after a successful run).
     """
     path = _resolve_ddii_csv_path()
     if not path:
         return
 
     from services.ddi_csv_ingestion import SOURCE_TAG, ingest_ddii_csv_file
+
+    force = os.getenv("DDI_CSV_FORCE_RELOAD", "").strip().lower() in ("1", "true", "yes")
+    if force:
+        with SessionLocal() as db:
+            deleted = (
+                db.query(DrugInteraction)
+                .filter(DrugInteraction.source == SOURCE_TAG)
+                .delete(synchronize_session=False)
+            )
+            db.commit()
+            logger.info(
+                "DDI_CSV_FORCE_RELOAD: removed %s drug_interactions rows (source=%s)",
+                deleted,
+                SOURCE_TAG,
+            )
 
     with SessionLocal() as db:
         n = db.query(DrugInteraction).filter(DrugInteraction.source == SOURCE_TAG).count()

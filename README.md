@@ -70,7 +70,8 @@ Key values:
 - `DATABASE_URL` (default: `sqlite:///./pharmacy.db`)
 - `FRONTEND_URL` — comma-separated CORS origins; default in code includes `http://localhost:8000` and `http://localhost:8080`
 - `JWT_SECRET` — signing key for PairWise Rx auth cookies (set in production)
-- `DRUG_INTERACTIONS_CSV` — absolute path to `db_drug_interactions.csv` (Drug 1, Drug 2, Interaction Description). Loaded once on startup if the DB has no rows from that source yet.
+- `DRUG_INTERACTIONS_CSV` — absolute path to `db_drug_interactions.csv` (Drug 1, Drug 2, Interaction Description). Loaded once on startup if the DB has no rows from that source yet. Put this in a **repo-root `.env`** file (loaded automatically when you start `uvicorn` from `fastapi/`).
+- `DDI_CSV_FORCE_RELOAD` — set to `1` **once** to delete existing CSV-backed interaction rows and re-import from `DRUG_INTERACTIONS_CSV` (slow on large files; unset afterward).
 - `DDI_CSV_COMMIT_EVERY` (optional) — batch size during CSV ingest (default `2000`).
 
 `GET /config/status` reports `counseling_engine: template` and `llm_enabled: false`.
