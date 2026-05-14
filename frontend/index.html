@@ -1912,13 +1912,21 @@
       const input = document.getElementById('patient-search-input');
       const section = document.getElementById('patient-search-results-section');
       const out = document.getElementById('patient-search-results');
+      const mainList = document.getElementById('intake-list');
+      const filterBar = document.getElementById('filter-bar');
       if (!input || !out) return;
       const q = input.value.trim();
       if (!q) {
         section.style.display = 'none';
         out.innerHTML = '';
+        // Restore main list visibility
+        if (mainList) mainList.style.display = '';
+        if (filterBar) filterBar.style.display = '';
         return;
       }
+      // Hide main list & filter chips while searching (de-duplication)
+      if (mainList) mainList.style.display = 'none';
+      if (filterBar) filterBar.style.display = 'none';
       section.style.display = '';
       renderIntakeListSkeleton(out);
       try {

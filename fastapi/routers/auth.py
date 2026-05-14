@@ -77,7 +77,11 @@ def me(request: Request):
 @router.post("/forgot-password")
 def forgot_password(body: ForgotPasswordBody, request: Request):
     token = auth_service.create_password_reset(body.email)
-    base = str(request.base_url).rstrip("/")
+    # Prefer X-Forwarded-* (set by upstream reverse proxy) so the link points to
+    # the public host, not 127.0.0.1.
+    fwd_host = request.headers.get("x-forwarded-host") or request.headers.get("host")
+    fwd_proto = request.headers.get("x-forwarded-proto", "http")
+    base = f"{fwd_proto}://{fwd_host}" if fwd_host else str(request.base_url).rstrip("/")
     out: dict = {"ok": True, "message": "If an account exists for that email, you can reset your password below."}
     if token:
         out["reset_url"] = f"{base}/reset-password?token={token}"

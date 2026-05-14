@@ -55,7 +55,9 @@ function shouldProxy(pathname) {
     pathname.startsWith("/intakes/") ||
     pathname === "/health" ||
     pathname === "/config" ||
-    pathname.startsWith("/config/")
+    pathname.startsWith("/config/") ||
+    pathname === "/api/auth/forgot-password" ||
+    pathname === "/api/auth/reset-password"
   );
 }
 
