@@ -1,4 +1,4 @@
-# Pharma Checker portal (React)
+# PairWise Rx portal (React)
 
 This folder builds the **splash, auth, and forgot-password** UI that FastAPI serves from **`http://localhost:8000`** (not a separate Node port in production).
 

@@ -1,4 +1,4 @@
-"""File-backed portal auth (bcrypt + JWT cookie). Used when Pharma Checker UI is served from FastAPI."""
+"""File-backed portal auth (bcrypt + JWT cookie). Used when PairWise Rx UI is served from FastAPI."""
 
 from __future__ import annotations
 

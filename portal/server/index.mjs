@@ -251,7 +251,7 @@ let activePort = requestedPort;
 const httpServer = http.createServer(app);
 
 function onListening() {
-  console.log(`Pharma Checker portal → http://localhost:${activePort}`);
+  console.log(`PairWise Rx portal → http://localhost:${activePort}`);
   if (activePort !== requestedPort) {
     console.log(`  (Port ${requestedPort} was in use; open the URL above.)`);
   }

@@ -1,4 +1,4 @@
-# Build Pharma Checker React shell (served by FastAPI on :8000)
+# Build PairWise Rx React shell (served by FastAPI on :8000)
 FROM node:20-bookworm-slim AS portal_build
 WORKDIR /pb
 COPY portal/package.json ./

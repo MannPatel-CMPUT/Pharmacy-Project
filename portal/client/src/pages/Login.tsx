@@ -50,7 +50,7 @@ export default function Login() {
         <div className="glass-card">
           <h1>Welcome back</h1>
           <p className="sub">
-            Access the RxFlow workspace to triage prescriptions and screen interactions.
+            Access the PairWise Rx workspace to triage prescriptions and screen drug pairs.
           </p>
           <form onSubmit={onSubmit} noValidate>
             <div className="field">
@@ -128,7 +128,7 @@ export default function Login() {
             </Link>
           </div>
           <div className="footer-links">
-            New to RxFlow?{" "}
+            New to PairWise Rx?{" "}
             <Link to="/signup" data-testid="login-signup-link">
               Create an account
             </Link>

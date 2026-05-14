@@ -1,4 +1,4 @@
-# 💊 Pharmacy Workflow Automation System
+# 💊 PairWise Rx — Pharmacy workflow
 
 A FastAPI + SQLite workflow system for pharmacy intake processing with deterministic drug interaction detection (from your `db_drug_interactions.csv`), template-based counseling text, and optional manual dataset ingestion for tests.
 
@@ -37,7 +37,7 @@ cp .env.example .env
 
 Default `.env` values work locally with SQLite.
 
-### 3) Build Pharma Checker shell (splash, login, sign up)
+### 3) Build PairWise Rx shell (splash, login, sign up)
 
 ```bash
 cd portal
@@ -69,7 +69,7 @@ Key values:
 
 - `DATABASE_URL` (default: `sqlite:///./pharmacy.db`)
 - `FRONTEND_URL` — comma-separated CORS origins; default in code includes `http://localhost:8000` and `http://localhost:8080`
-- `JWT_SECRET` — signing key for Pharma Checker auth cookies (set in production)
+- `JWT_SECRET` — signing key for PairWise Rx auth cookies (set in production)
 - `DRUG_INTERACTIONS_CSV` — absolute path to `db_drug_interactions.csv` (Drug 1, Drug 2, Interaction Description). Loaded once on startup if the DB has no rows from that source yet.
 - `DDI_CSV_COMMIT_EVERY` (optional) — batch size during CSV ingest (default `2000`).
 

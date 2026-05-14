@@ -7,7 +7,7 @@ Build and run:
 Pull a model into Ollama (once per machine/volume):
   docker compose exec ollama ollama pull llama3
 
-Open app (Pharma Checker + pharmacy workspace on one port):
+Open app (PairWise Rx + pharmacy workspace on one port):
   http://localhost:8000
   (Splash → sign up / sign in / forgot password → /workspace dashboard. React shell is built into the `api` image.)
 

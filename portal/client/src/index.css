@@ -1,4 +1,4 @@
-/* RxFlow Auth — Dark "control room" design system. Swiss/clinical archetype. */
+/* PairWise Rx Auth — Dark "control room" design system. Swiss/clinical archetype. */
 
 :root {
   /* Auth (dark) palette */
@@ -169,7 +169,7 @@ button {
 .brand-row .brand-word {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.32rem;
+  font-size: 1.12rem;
   letter-spacing: -0.02em;
   color: var(--text);
 }

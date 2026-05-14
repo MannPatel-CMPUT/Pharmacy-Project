@@ -33,7 +33,7 @@ _PORTAL_SETUP_HTML = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Build Pharma Checker UI</title>
+  <title>Build PairWise Rx UI</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 520px; margin: 48px auto; padding: 0 20px; line-height: 1.5; color: #1e293b; }
     code { background: #f1f5f9; padding: 2px 8px; border-radius: 6px; display: block; margin: 12px 0; white-space: pre-wrap; }
@@ -41,7 +41,7 @@ _PORTAL_SETUP_HTML = """<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <h1>Pharma Checker UI is not built yet</h1>
+  <h1>PairWise Rx UI is not built yet</h1>
   <p>The login / sign-up screens are a React app that must be compiled into <code>portal/client/dist</code> before this server can show them on port 8000.</p>
   <p><strong>From your project root</strong> (the folder that contains <code>portal</code> and <code>fastapi</code>), run:</p>
   <code>cd portal
@@ -61,7 +61,7 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠ Database initialization warning: {e}")
     if _PORTAL_OK:
-        print(f"✓ Pharma Checker portal UI enabled ({_PORTAL_DIST})")
+        print(f"✓ PairWise Rx portal UI enabled ({_PORTAL_DIST})")
     else:
         print(f"⚠ Portal UI missing or incomplete — expected {_PORTAL_INDEX}")
         if _PORTAL_INDEX.is_file() and not _PORTAL_ASSETS.is_dir():
@@ -71,8 +71,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Pharmacy Workflow Automation API",
-    description="Backend API for pharmacy workflow automation system",
+    title="PairWise Rx API",
+    description="Backend API for PairWise Rx pharmacy workflow",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -95,7 +95,7 @@ _HTML_NO_CACHE = {
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "message": "Pharmacy Workflow API is running"}
+    return {"status": "ok", "message": "PairWise Rx API is running"}
 
 
 app.include_router(auth_router)
