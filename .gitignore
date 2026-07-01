@@ -74,3 +74,6 @@ credentials.json
 *.pem
 *.key
 .credentials
+MY_OAUTH_CREDENTIALS.md
+OAUTH_CREDENTIALS.md
+*CREDENTIALS*.md
