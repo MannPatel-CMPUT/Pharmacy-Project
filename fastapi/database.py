@@ -19,6 +19,10 @@ engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
     connect_args=_connect_args,
     pool_pre_ping=True,
+    # Recycle connections every 5 min so hosted Postgres (Render) doesn't hand
+    # us a stale connection killed by the server's idle-in-transaction reaper.
+    # Ignored for SQLite.
+    pool_recycle=int(os.getenv("SQLA_POOL_RECYCLE_SEC", "300")),
 )
 
 

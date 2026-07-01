@@ -7,6 +7,7 @@ import io
 import logging
 import os
 import re
+import time
 from typing import Any, TextIO
 
 from sqlalchemy.orm import Session
@@ -249,11 +250,14 @@ def ingest_ddii_csv_stream(
             pending_commits += 1
 
             if pending_commits >= commit_every:
+                _t0 = time.time()
                 db.commit()
+                _dt = time.time() - _t0
                 pending_commits = 0
                 print(
                     f"[ddi_csv] progress: {stats['total_rows']} rows read, "
-                    f"{stats['inserted']} inserted, {stats['skipped']} skipped",
+                    f"{stats['inserted']} inserted, {stats['skipped']} skipped "
+                    f"(commit {_dt:.2f}s)",
                     flush=True,
                 )
             elif stats["total_rows"] % progress_step == 0:
@@ -305,8 +309,13 @@ def ingest_ddii_csv_file(
     commit_every: int | None = None,
 ) -> dict[str, Any]:
     ce = commit_every if commit_every is not None else int(os.getenv("DDI_CSV_COMMIT_EVERY", "2000"))
-    if "sqlite" in (os.getenv("DATABASE_URL") or "").lower():
+    db_url = (os.getenv("DATABASE_URL") or "").lower()
+    if "sqlite" in db_url:
         # Shorter write transactions reduce contention with API traffic on the same SQLite file.
         ce = min(ce, int(os.getenv("DDI_CSV_COMMIT_EVERY_SQLITE", "500")))
+    elif db_url.startswith("postgres"):
+        # Hosted Postgres (e.g. Render) can stall on very large batches; smaller
+        # commits mean shorter transactions and faster recovery if a batch fails.
+        ce = min(ce, int(os.getenv("DDI_CSV_COMMIT_EVERY_PG", "500")))
     with open(file_path, "r", encoding="utf-8-sig", newline="") as f:
         return ingest_ddii_csv_stream(db, f, max_rows=max_rows, commit_every=ce)
