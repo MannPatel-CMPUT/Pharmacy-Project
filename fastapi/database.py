@@ -9,8 +9,9 @@ import logging
 
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./pharmacy.db")
 
-_connect_args: dict = {"check_same_thread": False}
+_connect_args: dict = {}
 if SQLALCHEMY_DATABASE_URL.startswith("sqlite"):
+    _connect_args["check_same_thread"] = False
     # Wait for writers (e.g. background CSV ingest) instead of immediate "database is locked".
     _connect_args["timeout"] = float(os.getenv("SQLITE_LOCK_TIMEOUT", "60"))
 
