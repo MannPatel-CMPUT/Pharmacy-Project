@@ -1,13 +1,15 @@
 from schemas.intake_actions import StatusUpdate, AssignUser
 from fastapi import APIRouter, HTTPException, Depends, Query, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Dict, List, Optional
 from schemas.intake import (
     IntakeCreate, IntakeOut, StatusHistoryEntry,
     CounselingPointsUpdate, PharmacistNotesUpdate, DispenseUpdate,
     EvaluateIntakeRequest, EvaluateIntakeResponse,
 )
 from services import intake_service, auth_service
+from services import viewers_registry
 from database import get_db
 
 
@@ -154,3 +156,27 @@ def check_intake_permissions(intake_id: int, request: Request, db: Session = Dep
         "assigned_to": intake.assigned_to,
         "current_user": username
     }
+
+
+class ViewingHeartbeat(BaseModel):
+    intake_ids: List[int] = Field(default_factory=list, max_length=200)
+
+
+@router.post("/viewing")
+def register_viewing_heartbeat(payload: ViewingHeartbeat, request: Request):
+    """
+    Record that the caller is currently viewing the given intake ids and return
+    the *other* users viewing them right now. The client heartbeats every ~20s.
+
+    Anonymous callers (no session cookie) get an empty map — we don't leak who
+    else is looking at an intake to unauthenticated visitors.
+    """
+    username = _current_username(request)
+    if not username:
+        return {"viewers": {}, "self": None}
+    viewers_registry.heartbeat(username, payload.intake_ids)
+    other: Dict[int, List[str]] = viewers_registry.viewers_for(
+        payload.intake_ids, exclude_username=username
+    )
+    # JSON keys must be strings.
+    return {"viewers": {str(k): v for k, v in other.items()}, "self": username}

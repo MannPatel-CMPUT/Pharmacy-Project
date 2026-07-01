@@ -49,6 +49,17 @@ const app = express();
 app.disable("x-powered-by");
 app.use(cookieParser());
 
+// Serve the workspace's split CSS / JS from /app/frontend under /static/*.
+// FastAPI (production) already mounts /static → /app/frontend; this keeps the
+// dev-time Node portal on parity so the workspace HTML loads the same URLs.
+app.use(
+  "/static",
+  express.static(path.join(repoRoot, "frontend"), {
+    fallthrough: false,
+    maxAge: "1h",
+  }),
+);
+
 function shouldProxy(pathname) {
   return (
     pathname === "/intakes" ||

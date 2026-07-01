@@ -73,6 +73,17 @@ Existing app: **Pharmacy Workflow Automation** — FastAPI + vanilla HTML dashbo
   - **Verified locally**: All three code paths pass — fresh INSERT (191,135 pairs loaded), forced UPDATE-in-place (previously crashed), and no-op SKIP on unchanged CSV.
 - **New endpoint**: `GET /api/admin/ddi-stats` (cookie-authenticated) — returns `{drug_interactions_total, by_source, by_severity, csv_manifest}`. Verified end-to-end: 191,135 CSV + 4 seed_json rows, manifest `ingest_complete=true`. Unauthenticated → 401. Portal Node proxy updated in `/app/portal/server/index.mjs` to forward `/api/admin/*` to FastAPI.
 
+## Workspace features batch (Feb 2026, phases 1–4)
+- **PDF export** (`exportIntakePdf` in `/app/frontend/js/app.js`) — landscape 1-pager pharmacist summary via jsPDF (CDN). Header + risk banner, two-column body (patient/meds/notes ← → interactions/warnings/counseling), and audit-trail footer. Button on every card (`data-testid="export-pdf-{id}"`); no backend dependency.
+- **Full audit-trail modal** — "Full history" button (`data-testid="view-full-audit-{id}"`) opens a scrollable timeline modal (`#audit-modal`) rendering every transition from `/intakes/{id}/history` newest-first. Rows carry `data-testid="audit-row-{intakeId}-{idx}"`.
+- **Multi-user concurrency indicator** — new `POST /intakes/viewing` (in-memory registry `services/viewers_registry.py`, 40s TTL). Client heartbeats every 20 s with all visible card ids and renders "Also viewing: @user" chips (`.viewer-chip` with green dot). Self excluded; anonymous callers get an empty map.
+- **Frontend module split** — `/app/frontend/index.html` shrunk from 2,890 → 276 lines. Extracted:
+  - `/app/frontend/css/app.css` (~1,100 lines)
+  - `/app/frontend/js/lib.js` (~304 lines — constants, utils, computes, pickup, patient context)
+  - `/app/frontend/js/app.js` (~1,204 lines — card render, list load, PDF, audit modal, viewers, actions, form, init)
+  - Node portal (`/app/portal/server/index.mjs`) now serves `/static/*` from `/app/frontend/` so URLs match FastAPI's existing `/static` mount on Render.
+- **Regression tests** — `/app/tests/test_admin_and_viewers.py` (7 new tests) covers `/api/admin/ddi-stats` auth + shape, and `/intakes/viewing` for anonymous/self-exclusion/other-users/stale-heartbeat/oversize-batch. Full suite: **61 passed**.
+
 ## Prioritized backlog / Future
 - **P1**: Add `data-testid='audit-{id}'` was added in iteration 1 review; harden CSV ingest path for very large interaction datasets (current code already batches).
 - **P2**: Replace the inline emoji in counseling template output (backend `template_service`) with neutral text or icon tokens.

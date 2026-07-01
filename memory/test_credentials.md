@@ -9,6 +9,7 @@ These accounts were seeded during testing. Both can sign in via `/login`.
 | `demo`   | `demopass1` | Initial test account                    |
 | `maria`  | `demopass1` | Used for seeding sample intakes & audit |
 | `ddi_admin_test` | `testpass1` | Created Feb 2026 to smoke-test `/api/admin/ddi-stats` (email `ddi@example.test`, phone `5555550100`) |
+| `viewer_two` | `testpass1` | Created Feb 2026 to smoke-test the concurrency viewers indicator (email `v2@example.test`, phone `5555550101`) |
 
 ## Demo intakes (after seeding)
 
