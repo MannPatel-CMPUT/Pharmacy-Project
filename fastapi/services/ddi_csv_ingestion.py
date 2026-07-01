@@ -122,43 +122,95 @@ def ingest_ddii_csv_stream(
         for did, a in db.query(DrugAlias.drug_id, DrugAlias.alias).all()
     }
 
-    def _resolve_drug_id(name: str) -> int:
-        """Look up (or lazily create + flush) a drug by name; cache the id."""
-        key = name.lower()
-        cached = drug_id_by_name.get(key)
-        if cached is not None:
-            return cached
-        new_drug = Drug(generic_name=key, brand_name=None)
-        db.add(new_drug)
-        db.flush()  # get new id without a network SELECT
-        drug_id_by_name[key] = new_drug.id
-        return new_drug.id
-
-    def _ensure_alias_cached(drug_id: int, alias: str) -> None:
-        key = (drug_id, alias.lower())
-        if key in known_alias_keys:
-            return
-        db.add(DrugAlias(drug_id=drug_id, alias=alias))
-        known_alias_keys.add(key)
-
-    commit_every = max(100, min(commit_every, 20000))
-    pending_commits = 0
-    progress_step = 10000  # log every 10K rows so operators can see progress
-
+    # ─── PASS 1: buffer the CSV in memory, discover all unique drug names,
+    #     insert new drugs + aliases in ONE committed transaction. This is
+    #     critical for Postgres: mixing lazy `db.add(Drug); db.flush()` with
+    #     interaction inserts caused FK violations after an interaction-row
+    #     rollback silently invalidated the flushed-but-not-yet-committed
+    #     drug ids in our cache.
+    print("[ddi_csv] pass 1/2: scanning CSV for unique drugs…", flush=True)
+    parsed_rows: list[tuple[str, str, str, str | None]] = []
     for raw in reader:
-        if max_rows is not None and stats["total_rows"] >= max_rows:
+        if max_rows is not None and len(parsed_rows) >= max_rows:
             break
-
         mapped = _map_ddii_row({k: v or "" for k, v in raw.items()})
         if not mapped:
             stats["skipped"] += 1
             continue
+        parsed_rows.append(
+            (
+                mapped["drug_a"],
+                mapped["drug_b"],
+                mapped["description"][:8000],
+                mapped.get("explicit_severity"),
+            )
+        )
 
+    unique_names: set[str] = set()
+    for a, b, _desc, _sev in parsed_rows:
+        unique_names.add(a.lower())
+        unique_names.add(b.lower())
+    new_names = [n for n in unique_names if n not in drug_id_by_name]
+    print(
+        f"[ddi_csv] pass 1/2: {len(unique_names)} unique drug names "
+        f"({len(new_names)} new to insert)",
+        flush=True,
+    )
+
+    if new_names:
+        # Bulk-insert new drugs in one transaction so their ids become durable
+        # BEFORE we start writing interactions. If this commit fails, we bail
+        # early rather than corrupt the cache.
+        for chunk_start in range(0, len(new_names), 1000):
+            chunk = new_names[chunk_start : chunk_start + 1000]
+            for name in chunk:
+                db.add(Drug(generic_name=name, brand_name=None))
+            db.flush()
+        db.commit()
+        # Refresh cache from the DB — the only source of truth after commit.
+        drug_id_by_name = {
+            (n or "").lower(): i
+            for i, n in db.query(Drug.id, Drug.generic_name).all()
+        }
+        print(
+            f"[ddi_csv] pass 1/2: committed {len(new_names)} new drug rows",
+            flush=True,
+        )
+
+    # Also bulk-insert missing aliases (generic-name aliases so lookups work).
+    new_aliases_to_add: list[DrugAlias] = []
+    for a, b, _desc, _sev in parsed_rows:
+        for alias in (a, b):
+            key = alias.lower()
+            drug_id = drug_id_by_name.get(key)
+            if drug_id is None:
+                continue
+            alias_key = (drug_id, key)
+            if alias_key in known_alias_keys:
+                continue
+            new_aliases_to_add.append(DrugAlias(drug_id=drug_id, alias=alias))
+            known_alias_keys.add(alias_key)
+    if new_aliases_to_add:
+        for chunk_start in range(0, len(new_aliases_to_add), 2000):
+            db.add_all(new_aliases_to_add[chunk_start : chunk_start + 2000])
+            db.flush()
+        db.commit()
+        print(
+            f"[ddi_csv] pass 1/2: committed {len(new_aliases_to_add)} new alias rows",
+            flush=True,
+        )
+
+    # ─── PASS 2: write drug_interactions using durable drug ids.
+    commit_every = max(100, min(commit_every, 20000))
+    pending_commits = 0
+    progress_step = 10000
+    print(
+        f"[ddi_csv] pass 2/2: inserting interactions for {len(parsed_rows)} candidate rows…",
+        flush=True,
+    )
+
+    for d1, d2, desc, explicit in parsed_rows:
         stats["total_rows"] += 1
-        d1 = mapped["drug_a"]
-        d2 = mapped["drug_b"]
-        desc = mapped["description"][:8000]
-        explicit = mapped.get("explicit_severity")
         if explicit in ALLOWED_SEVERITIES:
             severity = explicit
         else:
@@ -167,10 +219,11 @@ def ingest_ddii_csv_stream(
             severity = "moderate"
 
         try:
-            drug_a_id = _resolve_drug_id(d1)
-            drug_b_id = _resolve_drug_id(d2)
-            _ensure_alias_cached(drug_a_id, d1)
-            _ensure_alias_cached(drug_b_id, d2)
+            drug_a_id = drug_id_by_name.get(d1.lower())
+            drug_b_id = drug_id_by_name.get(d2.lower())
+            if drug_a_id is None or drug_b_id is None:
+                stats["skipped"] += 1
+                continue
 
             pair = ordered_pair(drug_a_id, drug_b_id)
             if pair in known_pairs:
@@ -196,7 +249,6 @@ def ingest_ddii_csv_stream(
             if pending_commits >= commit_every:
                 db.commit()
                 pending_commits = 0
-                # Print (not log) so it always appears in Render/uvicorn stdout.
                 print(
                     f"[ddi_csv] progress: {stats['total_rows']} rows read, "
                     f"{stats['inserted']} inserted, {stats['skipped']} skipped",
@@ -211,6 +263,10 @@ def ingest_ddii_csv_stream(
         except Exception as exc:
             stats["failed"] += 1
             db.rollback()
+            # Any interactions accumulated in this batch that got rolled back
+            # will be re-inserted individually on future rows — no drug-id
+            # corruption is possible now that drugs are pre-committed.
+            pending_commits = 0
             logger.exception("ddi_csv row failed: %s", exc)
             if stats["failed"] > 100:
                 stats["fatal"] = True

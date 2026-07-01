@@ -82,7 +82,16 @@ Existing app: **Pharmacy Workflow Automation** — FastAPI + vanilla HTML dashbo
   - `/app/frontend/js/lib.js` (~304 lines — constants, utils, computes, pickup, patient context)
   - `/app/frontend/js/app.js` (~1,204 lines — card render, list load, PDF, audit modal, viewers, actions, form, init)
   - Node portal (`/app/portal/server/index.mjs`) now serves `/static/*` from `/app/frontend/` so URLs match FastAPI's existing `/static` mount on Render.
-- **Regression tests** — `/app/tests/test_admin_and_viewers.py` (7 new tests) covers `/api/admin/ddi-stats` auth + shape, and `/intakes/viewing` for anonymous/self-exclusion/other-users/stale-heartbeat/oversize-batch. Full suite: **61 passed**.
+- **Regression tests** — `/app/tests/test_admin_and_viewers.py` (7 new tests) covers `/api/admin/ddi-stats` auth + shape, and `/intakes/viewing` for anonymous/self-exclusion/other-users/stale-heartbeat/oversize-batch. Full suite: **64 passed**.
+
+## DDII CSV ingest: two-pass fix + progress logs (Feb 2026)
+- **Bug**: On Render Postgres, the "cache flushed drug ids then insert interactions" optimisation caused `psycopg2.errors.ForeignKeyViolation: Key (drug_b_id)=(1439) is not present in table "drugs"`. Root cause: any interaction-row failure triggered `db.rollback()`, which discarded the flushed-but-uncommitted drug rows, but the Python cache still held their now-orphan ids.
+- **Fix in `/app/fastapi/services/ddi_csv_ingestion.py`**:
+  - **Pass 1**: buffer the parsed CSV rows in memory, collect unique drug names, bulk-insert new `Drug` rows + missing `DrugAlias` rows in an explicit committed transaction.
+  - **Pass 2**: read the buffered rows again, insert `DrugInteraction` rows referencing durable, already-committed drug ids. A rollback here can only drop interaction rows — no FK corruption possible.
+  - `[ddi_csv]` progress prints (`pass 1/2: … unique drugs`, `pass 2/2: inserting …`, per-batch `progress: N rows read, M inserted`) so Render logs are actionable.
+- **Verified**: full 191,541-row CSV ingests in **24 s** on SQLite → 191,135 interactions + 1,701 drugs + 1,701 aliases.
+- **Regression tests** — `/app/tests/test_ddi_csv_ingest_two_pass.py` (3 new tests): FK integrity across all interaction rows, reverse-pair dedup, reused existing drugs on second ingest. Full suite: **64 passed**.
 
 ## Prioritized backlog / Future
 - **P1**: Add `data-testid='audit-{id}'` was added in iteration 1 review; harden CSV ingest path for very large interaction datasets (current code already batches).
