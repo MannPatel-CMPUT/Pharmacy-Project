@@ -77,6 +77,101 @@ def is_ddii_csv_headers(fieldnames: list[str] | None) -> bool:
     return False
 
 
+def _copy_interactions_postgres(
+    *,
+    db: Session,
+    parsed_rows,
+    drug_id_by_name: dict[str, int],
+    known_pairs: set[tuple[int, int]],
+    stats: dict[str, Any],
+) -> dict[str, Any]:
+    """
+    Bulk-load new drug_interactions rows into Postgres using ``COPY … FROM STDIN``.
+    Single streaming operation → ~10-100× faster than row-by-row INSERT batches
+    and side-steps the "hundreds of small commits stall on hosted Postgres"
+    failure mode. Returns updated ``stats`` in-place.
+    """
+    # Build the COPY payload in memory, skipping rows whose pair already exists
+    # or whose drugs weren't resolved.
+    buf = io.StringIO()
+    row_count = 0
+    for d1, d2, desc, explicit in parsed_rows:
+        stats["total_rows"] += 1
+        if explicit in ALLOWED_SEVERITIES:
+            severity = explicit
+        else:
+            severity = classify_ddii_interaction_severity(desc)
+        if severity not in ALLOWED_SEVERITIES:
+            severity = "moderate"
+
+        drug_a_id = drug_id_by_name.get(d1.lower())
+        drug_b_id = drug_id_by_name.get(d2.lower())
+        if drug_a_id is None or drug_b_id is None:
+            stats["skipped"] += 1
+            continue
+
+        pair = ordered_pair(drug_a_id, drug_b_id)
+        if pair in known_pairs:
+            stats["skipped"] += 1
+            continue
+        known_pairs.add(pair)
+
+        # Postgres COPY tab-delimited format. Escape tabs, newlines, and
+        # backslashes in the description so they don't break the column layout.
+        def _copy_escape(s: str) -> str:
+            return (
+                s.replace("\\", "\\\\")
+                 .replace("\t", "\\t")
+                 .replace("\n", "\\n")
+                 .replace("\r", "\\r")
+            )
+
+        desc_esc = _copy_escape(desc)
+        eff_esc = _copy_escape(desc[:2000])
+        # Columns: drug_a_id, drug_b_id, severity, description, clinical_effect,
+        #          mechanism, monitoring, source
+        buf.write(
+            f"{pair[0]}\t{pair[1]}\t{severity}\t{desc_esc}\t{eff_esc}\t\\N\t\\N\t{SOURCE_TAG}\n"
+        )
+        row_count += 1
+
+    if row_count == 0:
+        print("[ddi_csv] pass 2/2: nothing new to insert (all pairs already present)", flush=True)
+        return stats
+
+    buf.seek(0)
+    print(
+        f"[ddi_csv] pass 2/2: streaming {row_count} new interaction rows via COPY…",
+        flush=True,
+    )
+    t0 = time.time()
+
+    # Get the raw psycopg2 connection to use copy_expert.
+    raw_conn = db.connection().connection  # SQLAlchemy → DBAPI connection
+    cursor = raw_conn.cursor()
+    try:
+        cursor.copy_expert(
+            """
+            COPY drug_interactions
+              (drug_a_id, drug_b_id, severity, description, clinical_effect,
+               mechanism, monitoring, source)
+            FROM STDIN WITH (FORMAT text, DELIMITER E'\t', NULL '\\N')
+            """,
+            buf,
+        )
+    finally:
+        cursor.close()
+
+    dt = time.time() - t0
+    stats["inserted"] += row_count
+    print(
+        f"[ddi_csv] pass 2/2: COPY complete — {row_count} rows in {dt:.2f}s "
+        f"({int(row_count / max(dt, 0.001))} rows/s)",
+        flush=True,
+    )
+    return stats
+
+
 def ingest_ddii_csv_stream(
     db: Session,
     text_stream: TextIO,
@@ -203,14 +298,48 @@ def ingest_ddii_csv_stream(
             flush=True,
         )
 
-    # ─── PASS 2: write drug_interactions using durable drug ids.
-    commit_every = max(100, min(commit_every, 20000))
-    pending_commits = 0
-    progress_step = 10000
+    # ─── PASS 2: write drug_interactions.
+    #
+    # On Postgres we use ``COPY drug_interactions ... FROM STDIN`` — a single
+    # streaming bulk-load that is 10–100× faster than row-by-row INSERTs and
+    # avoids the hosted-tier failure mode of "hundreds of small commits stall".
+    # On SQLite (and any other backend) we keep the row-by-row path.
     print(
         f"[ddi_csv] pass 2/2: inserting interactions for {len(parsed_rows)} candidate rows…",
         flush=True,
     )
+
+    is_postgres = "postgres" in str(db.get_bind().url).lower()
+    if is_postgres:
+        stats.update(
+            _copy_interactions_postgres(
+                db=db,
+                parsed_rows=parsed_rows,
+                drug_id_by_name=drug_id_by_name,
+                known_pairs=known_pairs,
+                stats=stats,
+            )
+        )
+        db.commit()
+        print(
+            f"[ddi_csv] done total_rows={stats['total_rows']} "
+            f"inserted={stats['inserted']} skipped={stats['skipped']} "
+            f"failed={stats['failed']} (via COPY)",
+            flush=True,
+        )
+        logger.info(
+            "ddi_csv done total_rows=%s inserted=%s skipped=%s failed=%s",
+            stats["total_rows"],
+            stats["inserted"],
+            stats["skipped"],
+            stats["failed"],
+        )
+        return stats
+
+    # SQLite / others: keep the row-by-row batched path.
+    commit_every = max(100, min(commit_every, 20000))
+    pending_commits = 0
+    progress_step = 10000
 
     for d1, d2, desc, explicit in parsed_rows:
         stats["total_rows"] += 1
