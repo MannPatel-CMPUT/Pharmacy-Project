@@ -178,16 +178,17 @@ def _resolve_ddii_csv_path() -> str | None:
     explicit = (os.getenv("DRUG_INTERACTIONS_CSV") or "").strip()
     if explicit:
         if os.path.isfile(explicit):
+            print(f"[ddi_csv] using DRUG_INTERACTIONS_CSV env: {explicit}", flush=True)
             return explicit
-        logger.warning("DRUG_INTERACTIONS_CSV is set but file not found: %s", explicit)
+        print(f"[ddi_csv] DRUG_INTERACTIONS_CSV is set but file not found: {explicit}", flush=True)
         return None
     default_csv = Path(__file__).resolve().parent / "data" / "db_drug_interactions.csv"
     if default_csv.is_file():
-        logger.info("DRUG_INTERACTIONS_CSV not set; loading %s", default_csv)
+        print(f"[ddi_csv] DRUG_INTERACTIONS_CSV not set; using default: {default_csv}", flush=True)
         return str(default_csv)
-    logger.info(
-        "No interaction CSV: set DRUG_INTERACTIONS_CSV or copy db_drug_interactions.csv to %s",
-        default_csv,
+    print(
+        f"[ddi_csv] no CSV file found — set DRUG_INTERACTIONS_CSV or place file at {default_csv}",
+        flush=True,
     )
     return None
 
@@ -231,30 +232,26 @@ def _load_ddii_csv_if_configured() -> None:
             man = db.get(DdiCsvIngestManifest, 1)
             n = db.query(DrugInteraction).filter(DrugInteraction.source == SOURCE_TAG).count()
             if _manifest_ok_for_skip(man, n):
-                logger.info(
-                    "Drug interaction CSV unchanged and fully ingested (%s pairs); skipping",
-                    n,
+                print(
+                    f"[ddi_csv] unchanged and fully ingested ({n} pairs); skipping",
+                    flush=True,
                 )
                 return
 
             if force:
-                logger.info("DDI_CSV_FORCE_RELOAD: clearing DDII manifest and CSV-backed rows")
+                print("[ddi_csv] DDI_CSV_FORCE_RELOAD: clearing manifest and CSV-backed rows", flush=True)
             elif man is None:
-                logger.info("DDII ingest manifest missing; clearing any partial CSV-backed rows")
+                print("[ddi_csv] manifest missing; clearing any partial CSV-backed rows", flush=True)
             elif man.ingest_complete != 1:
-                logger.info("DDII ingest was incomplete last run; clearing CSV-backed rows")
+                print("[ddi_csv] previous ingest incomplete; clearing CSV-backed rows", flush=True)
             elif man.csv_path != resolved or man.file_size != size or man.file_mtime != mtime:
-                logger.info(
-                    "DDII CSV file changed (was %s bytes mtime %s; now %s bytes mtime %s); reloading",
-                    man.file_size,
-                    man.file_mtime,
-                    size,
-                    mtime,
+                print(
+                    f"[ddi_csv] CSV file changed (was {man.file_size} bytes mtime {man.file_mtime}; "
+                    f"now {size} bytes mtime {mtime}); reloading",
+                    flush=True,
                 )
             elif n == 0:
-                logger.warning(
-                    "DDII manifest reports success but no CSV rows in DB; re-importing from file"
-                )
+                print("[ddi_csv] manifest reports success but 0 rows in DB; re-importing", flush=True)
 
             deleted = (
                 db.query(DrugInteraction)
@@ -285,12 +282,13 @@ def _load_ddii_csv_if_configured() -> None:
                 man.last_ingest_stats = None
                 man.updated_at = now
             db.commit()
-            logger.info(
-                "Prepared DDII CSV ingest (removed %s old CSV-backed interaction rows)",
-                deleted,
+            print(
+                f"[ddi_csv] prepared ingest (removed {deleted} old CSV-backed interaction rows)",
+                flush=True,
             )
 
         with SessionLocal() as db:
+            print(f"[ddi_csv] beginning CSV ingest from {resolved}", flush=True)
             stats = ingest_ddii_csv_file(db, path)
             now = datetime.now(timezone.utc)
             stats_json = json.dumps(
@@ -322,13 +320,19 @@ def _load_ddii_csv_if_configured() -> None:
                 man2.last_ingest_stats = stats_json
                 man2.updated_at = now
             db.commit()
+        print(
+            f"[ddi_csv] ingest complete: inserted={stats.get('inserted')} "
+            f"skipped={stats.get('skipped')} total_rows={stats.get('total_rows')}",
+            flush=True,
+        )
         logger.info(
             "Loaded drug interactions CSV: inserted=%s skipped=%s rows=%s",
             stats.get("inserted"),
             stats.get("skipped"),
             stats.get("total_rows"),
         )
-    except Exception:
+    except Exception as e:
+        print(f"[ddi_csv] FAILED: {type(e).__name__}: {e}", flush=True)
         logger.exception("Failed to ingest DRUG_INTERACTIONS_CSV")
 
 

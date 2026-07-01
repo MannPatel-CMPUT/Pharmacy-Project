@@ -109,8 +109,41 @@ def ingest_ddii_csv_stream(
         (min(a, b), max(a, b)) for a, b in pair_rows
     }
 
+    # Preload existing drugs/aliases into memory to avoid ~1.5M SELECT round-trips
+    # against hosted Postgres (191K CSV rows × ≥4 lookup queries each).
+    from database import Drug, DrugAlias
+
+    drug_id_by_name: dict[str, int] = {
+        (n or "").lower(): i
+        for i, n in db.query(Drug.id, Drug.generic_name).all()
+    }
+    known_alias_keys: set[tuple[int, str]] = {
+        (did, (a or "").lower())
+        for did, a in db.query(DrugAlias.drug_id, DrugAlias.alias).all()
+    }
+
+    def _resolve_drug_id(name: str) -> int:
+        """Look up (or lazily create + flush) a drug by name; cache the id."""
+        key = name.lower()
+        cached = drug_id_by_name.get(key)
+        if cached is not None:
+            return cached
+        new_drug = Drug(generic_name=key, brand_name=None)
+        db.add(new_drug)
+        db.flush()  # get new id without a network SELECT
+        drug_id_by_name[key] = new_drug.id
+        return new_drug.id
+
+    def _ensure_alias_cached(drug_id: int, alias: str) -> None:
+        key = (drug_id, alias.lower())
+        if key in known_alias_keys:
+            return
+        db.add(DrugAlias(drug_id=drug_id, alias=alias))
+        known_alias_keys.add(key)
+
     commit_every = max(100, min(commit_every, 20000))
     pending_commits = 0
+    progress_step = 10000  # log every 10K rows so operators can see progress
 
     for raw in reader:
         if max_rows is not None and stats["total_rows"] >= max_rows:
@@ -134,12 +167,12 @@ def ingest_ddii_csv_stream(
             severity = "moderate"
 
         try:
-            drug_a = get_or_create_drug(db, d1)
-            drug_b = get_or_create_drug(db, d2)
-            ensure_alias(db, drug_a, d1)
-            ensure_alias(db, drug_b, d2)
+            drug_a_id = _resolve_drug_id(d1)
+            drug_b_id = _resolve_drug_id(d2)
+            _ensure_alias_cached(drug_a_id, d1)
+            _ensure_alias_cached(drug_b_id, d2)
 
-            pair = ordered_pair(drug_a.id, drug_b.id)
+            pair = ordered_pair(drug_a_id, drug_b_id)
             if pair in known_pairs:
                 stats["skipped"] += 1
                 continue
@@ -163,6 +196,18 @@ def ingest_ddii_csv_stream(
             if pending_commits >= commit_every:
                 db.commit()
                 pending_commits = 0
+                # Print (not log) so it always appears in Render/uvicorn stdout.
+                print(
+                    f"[ddi_csv] progress: {stats['total_rows']} rows read, "
+                    f"{stats['inserted']} inserted, {stats['skipped']} skipped",
+                    flush=True,
+                )
+            elif stats["total_rows"] % progress_step == 0:
+                print(
+                    f"[ddi_csv] progress: {stats['total_rows']} rows read "
+                    f"({stats['inserted']} inserted so far)",
+                    flush=True,
+                )
         except Exception as exc:
             stats["failed"] += 1
             db.rollback()
@@ -173,6 +218,12 @@ def ingest_ddii_csv_stream(
                 return stats
 
     db.commit()
+    print(
+        f"[ddi_csv] done total_rows={stats['total_rows']} "
+        f"inserted={stats['inserted']} skipped={stats['skipped']} "
+        f"failed={stats['failed']}",
+        flush=True,
+    )
     logger.info(
         "ddi_csv done total_rows=%s inserted=%s skipped=%s failed=%s",
         stats["total_rows"],
