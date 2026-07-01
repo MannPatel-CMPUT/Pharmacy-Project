@@ -91,7 +91,7 @@ Existing app: **Pharmacy Workflow Automation** — FastAPI + vanilla HTML dashbo
   - **Pass 2**: read the buffered rows again, insert `DrugInteraction` rows referencing durable, already-committed drug ids. A rollback here can only drop interaction rows — no FK corruption possible.
   - `[ddi_csv]` progress prints (`pass 1/2: … unique drugs`, `pass 2/2: inserting …`, per-batch `progress: N rows read, M inserted`) so Render logs are actionable.
 - **Verified**: full 191,541-row CSV ingests in **24 s** on SQLite → 191,135 interactions + 1,701 drugs + 1,701 aliases.
-- **Regression tests** — `/app/tests/test_ddi_csv_ingest_two_pass.py` (3 new tests): FK integrity across all interaction rows, reverse-pair dedup, reused existing drugs on second ingest. Full suite: **64 passed**.
+- **Regression tests** — `/app/tests/test_ddi_csv_ingest_two_pass.py` (4 tests): FK integrity across all interaction rows, reverse-pair dedup, reused existing drugs on second ingest, and **orphan-alias resilience** (a re-run after a previous partial ingest that left `DrugAlias` rows behind must dedup by global alias name, not `(drug_id, alias)`, or Postgres throws `UniqueViolation` on the `ix_drug_aliases_alias` index). Full suite: **65 passed**.
 
 ## Prioritized backlog / Future
 - **P1**: Add `data-testid='audit-{id}'` was added in iteration 1 review; harden CSV ingest path for very large interaction datasets (current code already batches).

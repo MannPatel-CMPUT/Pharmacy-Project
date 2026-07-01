@@ -36,7 +36,11 @@ def _fresh_db():
 
 def _csv(rows):
     header = "Drug 1,Drug 2,Interaction Description\n"
-    body = "\n".join(f"{a},{b},{d}" for a, b, d in rows)
+    def _quote(s):
+        if "," in s or '"' in s:
+            return '"' + s.replace('"', '""') + '"'
+        return s
+    body = "\n".join(f"{_quote(a)},{_quote(b)},{_quote(d)}" for a, b, d in rows)
     return io.StringIO(header + body)
 
 
@@ -109,3 +113,50 @@ def test_ingest_reuses_existing_drug_rows():
         assert db.query(Drug).count() == 3
         # 2 interactions total (warfarin+aspirin, warfarin+ibuprofen)
         assert db.query(DrugInteraction).count() == 2
+
+
+def test_ingest_survives_orphan_alias_from_previous_partial_run():
+    """
+    On a real production hosted-Postgres, a previous partial ingest left an
+    orphan `DrugAlias` row (drug_id points at a since-deleted drug or the alias
+    exists without a corresponding drug of the same generic name). Because
+    ``drug_aliases.alias`` has a GLOBAL unique constraint, naively inserting a
+    new alias with the same name for a freshly-created drug produces a
+    ``psycopg2.errors.UniqueViolation``. The ingest must detect the pre-existing
+    alias and skip it instead of blowing up the whole run.
+    """
+    # Seed the DB with an ORPHAN alias — same name as a drug we're about to
+    # ingest, but linked to a placeholder drug (so the alias exists but the
+    # generic-name drug row does not).
+    with SessionLocal() as db:
+        placeholder = Drug(generic_name="placeholder_drug", brand_name=None)
+        db.add(placeholder)
+        db.commit()
+        db.add(DrugAlias(drug_id=placeholder.id, alias="sodium phosphate, monobasic"))
+        db.commit()
+
+    # Now ingest a CSV that would want to create the same alias for a brand
+    # new "Sodium phosphate, monobasic" drug.
+    stream = _csv(
+        [
+            (
+                "Sodium phosphate, monobasic",
+                "Warfarin",
+                "The risk of adverse effects can be increased when Warfarin is combined with Sodium phosphate, monobasic.",
+            ),
+        ]
+    )
+    with SessionLocal() as db:
+        stats = ingest_ddii_csv_stream(db, stream)
+
+    # Interaction must have been inserted — the orphan alias must not block it.
+    assert stats["inserted"] == 1, stats
+    assert stats["failed"] == 0
+
+    with SessionLocal() as db:
+        # Only one alias row per unique alias name (the orphan is preserved).
+        aliases = [a.alias.lower() for a in db.query(DrugAlias).all()]
+        assert aliases.count("sodium phosphate, monobasic") == 1
+        # Drug + interaction present.
+        assert db.query(Drug).filter(Drug.generic_name == "sodium phosphate, monobasic").count() == 1
+        assert db.query(DrugInteraction).count() == 1

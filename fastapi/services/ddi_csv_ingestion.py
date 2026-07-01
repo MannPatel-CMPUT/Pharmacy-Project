@@ -117,9 +117,9 @@ def ingest_ddii_csv_stream(
         (n or "").lower(): i
         for i, n in db.query(Drug.id, Drug.generic_name).all()
     }
-    known_alias_keys: set[tuple[int, str]] = {
-        (did, (a or "").lower())
-        for did, a in db.query(DrugAlias.drug_id, DrugAlias.alias).all()
+    known_alias_names: set[str] = {
+        (a or "").lower()
+        for (a,) in db.query(DrugAlias.alias).all()
     }
 
     # ─── PASS 1: buffer the CSV in memory, discover all unique drug names,
@@ -178,18 +178,20 @@ def ingest_ddii_csv_stream(
         )
 
     # Also bulk-insert missing aliases (generic-name aliases so lookups work).
+    # NOTE: DrugAlias.alias has a GLOBAL unique constraint (not per-drug), so
+    # we dedup by alias name alone. This also skips orphan aliases left over
+    # from previous partial ingests.
     new_aliases_to_add: list[DrugAlias] = []
     for a, b, _desc, _sev in parsed_rows:
         for alias in (a, b):
             key = alias.lower()
+            if key in known_alias_names:
+                continue
             drug_id = drug_id_by_name.get(key)
             if drug_id is None:
                 continue
-            alias_key = (drug_id, key)
-            if alias_key in known_alias_keys:
-                continue
             new_aliases_to_add.append(DrugAlias(drug_id=drug_id, alias=alias))
-            known_alias_keys.add(alias_key)
+            known_alias_names.add(key)
     if new_aliases_to_add:
         for chunk_start in range(0, len(new_aliases_to_add), 2000):
             db.add_all(new_aliases_to_add[chunk_start : chunk_start + 2000])
