@@ -25,9 +25,9 @@ router = APIRouter(prefix="/intakes", tags=["intakes"])
 
 
 @router.post("", response_model=IntakeOut, status_code=201)
-def create_intake(payload: IntakeCreate, db: Session = Depends(get_db)):
+def create_intake(payload: IntakeCreate, request: Request, db: Session = Depends(get_db)):
     try:
-        intake = intake_service.create_intake(db, payload)
+        intake = intake_service.create_intake(db, payload, created_by=_current_username(request))
         return intake_service.enrich_intake_out(intake)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error creating intake: {str(e)}")
@@ -136,3 +136,21 @@ def dispense_medication(intake_id: int, payload: DispenseUpdate, request: Reques
     if not intake:
         raise HTTPException(status_code=404, detail="Intake not found")
     return intake_service.enrich_intake_out(intake)
+
+
+@router.get("/{intake_id}/permissions")
+def check_intake_permissions(intake_id: int, request: Request, db: Session = Depends(get_db)):
+    """Check if current user can modify this intake."""
+    intake = intake_service.get_intake_by_id(db, intake_id)
+    if not intake:
+        raise HTTPException(status_code=404, detail="Intake not found")
+    
+    username = _current_username(request)
+    can_modify = intake_service.can_user_modify_intake(intake, username)
+    
+    return {
+        "can_modify": can_modify,
+        "created_by": intake.created_by,
+        "assigned_to": intake.assigned_to,
+        "current_user": username
+    }

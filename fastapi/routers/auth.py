@@ -94,3 +94,26 @@ def reset_password(body: ResetPasswordBody):
     if not ok:
         raise HTTPException(status_code=400, detail="Invalid or expired reset link.")
     return {"ok": True}
+
+
+@router.get("/users")
+def list_users(request: Request):
+    """List all registered users/pharmacists for assignment dropdown."""
+    # Verify the user is authenticated
+    raw = request.cookies.get(auth_service.COOKIE_NAME)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    payload = auth_service.decode_token(raw)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    
+    users = auth_service.get_all_users()
+    return {
+        "users": [
+            {
+                "username": u["username"],
+                "email": u["email"]
+            }
+            for u in users
+        ]
+    }

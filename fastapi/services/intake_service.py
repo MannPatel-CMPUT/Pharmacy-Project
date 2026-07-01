@@ -52,6 +52,17 @@ _RISK_ORDER = ["None", "Low", "Moderate", "High", "Very High"]
 logger = logging.getLogger(__name__)
 
 
+def can_user_modify_intake(intake: Intake, username: Optional[str]) -> bool:
+    """Check if user has permission to modify (advance status) of an intake."""
+    if not username:
+        return False
+    # If not assigned, anyone can modify
+    if not intake.assigned_to:
+        return True
+    # If assigned, only the assigned pharmacist can modify
+    return intake.assigned_to == username
+
+
 def enrich_intake_out(intake: Intake) -> IntakeOut:
     """Add workflow labels for UI / browser notifications (pickup-ready, stage name)."""
     base = IntakeOut.model_validate(intake)
@@ -64,7 +75,7 @@ def enrich_intake_out(intake: Intake) -> IntakeOut:
     )
 
 
-def create_intake(db: Session, data: IntakeCreate) -> Intake:
+def create_intake(db: Session, data: IntakeCreate, created_by: Optional[str] = None) -> Intake:
     logger.info(
         "intake create normalized_medications new=%s current=%s",
         normalize_and_match(data.medications, db),
@@ -90,7 +101,8 @@ def create_intake(db: Session, data: IntakeCreate) -> Intake:
         current_medications=data.current_medications,
         notes=data.notes,
         drug_interactions=interactions_json,
-        status="new"
+        status="new",
+        created_by=created_by
     )
     db.add(intake)
     db.commit()
@@ -110,7 +122,7 @@ def create_intake(db: Session, data: IntakeCreate) -> Intake:
     db.commit()
     db.refresh(intake)
 
-    _record_status_history(db, intake.id, from_status=None, to_status="new")
+    _record_status_history(db, intake.id, from_status=None, to_status="new", changed_by=created_by)
     return intake
 
 
@@ -146,6 +158,13 @@ def update_status(db: Session, intake_id: int, new_status: str, changed_by: Opti
         raise ValueError(
             f"Invalid transition from '{current_status}' to '{new_status}'. "
             f"Allowed transitions: {ALLOWED_TRANSITIONS.get(current_status, [])}"
+        )
+
+    # Permission check: If prescription is assigned, only assigned pharmacist can advance
+    if intake.assigned_to and changed_by and intake.assigned_to != changed_by:
+        raise ValueError(
+            f"This prescription is assigned to '{intake.assigned_to}'. "
+            f"Only the assigned pharmacist can advance its status."
         )
 
     intake.status = new_status

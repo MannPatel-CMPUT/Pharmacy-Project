@@ -1324,6 +1324,8 @@
 
     let activeStatusFilter = '';
     let currentStats = null;
+    let allUsers = [];
+    let currentUsername = null;
 
     function _riskClass(risk) {
       return { 'None':'risk-none','Low':'risk-low','Moderate':'risk-moderate','High':'risk-high','Very High':'risk-veryhigh' }[risk] || 'risk-unknown';
@@ -1886,13 +1888,49 @@
           </div>
 
           <div class="actions">
-            ${getNextTransitions(intake.status).map(next => `<button class="btn primary sm" onclick="updateStatus(${intake.id}, '${next}')" data-testid="advance-${intake.id}-${next}"><i data-lucide="arrow-right"></i>Move to ${esc(next.replace('_', ' '))}</button>`).join('')}
-            ${intake.status === 'filled' ? `<button class="btn success sm" onclick="dispenseMedication(${intake.id})" data-testid="dispense-${intake.id}"><i data-lucide="check"></i>Dispense</button>` : ''}
-            <button class="btn sm" onclick="assignIntake(${intake.id})" data-testid="assign-${intake.id}"><i data-lucide="user-plus"></i>Assign</button>
-            <button class="btn warning sm" onclick="recheckInteractions(${intake.id})" data-testid="recheck-${intake.id}"><i data-lucide="refresh-cw"></i>Re-check</button>
+            ${buildActionButtons(intake)}
           </div>
         </article>
       `;
+    }
+
+    function buildActionButtons(intake) {
+      // Check if current user can modify this intake
+      const canModify = !intake.assigned_to || intake.assigned_to === currentUsername || !currentUsername;
+      
+      let html = '';
+      
+      // Status advancement buttons - only show if user has permission
+      if (canModify) {
+        html += getNextTransitions(intake.status).map(next => 
+          `<button class="btn primary sm" onclick="updateStatus(${intake.id}, '${next}')" data-testid="advance-${intake.id}-${next}">
+            <i data-lucide="arrow-right"></i>Move to ${esc(next.replace('_', ' '))}
+          </button>`
+        ).join('');
+        
+        // Dispense button
+        if (intake.status === 'filled') {
+          html += `<button class="btn success sm" onclick="dispenseMedication(${intake.id})" data-testid="dispense-${intake.id}">
+            <i data-lucide="check"></i>Dispense
+          </button>`;
+        }
+      } else {
+        // Show disabled message if can't modify
+        html += `<div style="padding:8px 12px; background:var(--warning-bg); border:1px solid var(--warning-border); border-radius:6px; font-size:0.82rem; color:var(--warning-text);">
+          <i data-lucide="lock"></i> Assigned to ${esc(intake.assigned_to)} — only they can advance this prescription
+        </div>`;
+      }
+      
+      // Assignment and re-check buttons - always available
+      html += `<button class="btn sm" onclick="assignIntake(${intake.id})" data-testid="assign-${intake.id}">
+        <i data-lucide="user-plus"></i>${intake.assigned_to ? 'Reassign' : 'Assign'}
+      </button>`;
+      
+      html += `<button class="btn warning sm" onclick="recheckInteractions(${intake.id})" data-testid="recheck-${intake.id}">
+        <i data-lucide="refresh-cw"></i>Re-check
+      </button>`;
+      
+      return html;
     }
 
     function renderIntakeListSkeleton(container) {
@@ -2013,6 +2051,25 @@
 
     /* ============ Actions ============ */
     async function updateStatus(intakeId, status) {
+      // Optimistic UI update - show loading state
+      const card = document.querySelector(`[data-intake-id="${intakeId}"]`);
+      if (card) {
+        const actions = card.querySelector('.actions');
+        if (actions) {
+          const originalHTML = actions.innerHTML;
+          actions.innerHTML = '<div style="display:flex;align-items:center;gap:8px;color:var(--text-muted);"><i data-lucide="loader-2" style="animation:spin 1s linear infinite;"></i>Updating...</div>';
+          initIcons();
+          
+          // Add CSS for spin animation if not exists
+          if (!document.getElementById('spin-animation')) {
+            const style = document.createElement('style');
+            style.id = 'spin-animation';
+            style.textContent = '@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }';
+            document.head.appendChild(style);
+          }
+        }
+      }
+      
       try {
         const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/status`, {
           method: 'POST',
@@ -2022,6 +2079,8 @@
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           toast({ title: 'Could not update status', message: err.detail || `HTTP ${res.status}`, type: 'error' });
+          // Restore original state on error
+          await loadIntakes();
           return;
         }
         toast({ title: 'Status updated', message: `Moved to ${statusLabel(status)}.`, type: 'success' });
@@ -2031,28 +2090,111 @@
         refreshPatientSearchIfActive();
       } catch (e) {
         toast({ title: 'Network error', message: e.message, type: 'error' });
+        // Restore on error
+        await loadIntakes();
       }
     }
     async function assignIntake(intakeId) {
-      const user = (prompt('Assign to user (name or initials):') || '').trim();
-      if (!user) return;
-      try {
-        const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/assign`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ user })
-        });
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          let detail = typeof err.detail === 'string' ? err.detail : 'Assign failed';
-          toast({ title: 'Assign failed', message: detail, type: 'error' });
-          return;
+      // Load all users if not already loaded
+      if (!allUsers.length) {
+        try {
+          const res = await fetchWithTimeout(`${API_BASE}/api/auth/users`);
+          if (res.ok) {
+            const data = await res.json();
+            allUsers = data.users || [];
+          }
+        } catch (e) {
+          console.error('Failed to load users', e);
         }
-        toast({ title: 'Assigned', message: `Now assigned to ${user}.`, type: 'success' });
-        await loadIntakes();
-        await loadStatistics();
-        refreshPatientSearchIfActive();
-      } catch (e) {
-        toast({ title: 'Network error', message: e.message || 'Assign failed', type: 'error' });
+      }
+
+      // If we have users, show a select dialog, otherwise fallback to prompt
+      if (allUsers.length > 0) {
+        const options = allUsers.map(u => `<option value="${esc(u.username)}">${esc(u.username)} (${esc(u.email)})</option>`).join('');
+        const selectHTML = `
+          <div style="margin-bottom:10px; font-size:0.9rem; color:var(--text-secondary);">Select pharmacist to assign:</div>
+          <select id="assign-user-select" style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font:inherit;">
+            <option value="">-- Select --</option>
+            ${options}
+          </select>
+        `;
+        
+        // Create a simple modal for selection
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay open';
+        modal.innerHTML = `
+          <div class="modal-box" style="max-width:400px;">
+            <div class="modal-head">
+              <h3>Assign Prescription</h3>
+              <button type="button" class="btn ghost xs" onclick="this.closest('.modal-overlay').remove();" aria-label="Close">
+                <i data-lucide="x"></i>
+              </button>
+            </div>
+            ${selectHTML}
+            <div class="modal-actions">
+              <button type="button" class="btn" onclick="this.closest('.modal-overlay').remove();">Cancel</button>
+              <button type="button" class="btn primary" id="confirm-assign-btn">
+                <i data-lucide="user-plus"></i> Assign
+              </button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+        initIcons();
+        
+        const confirmBtn = modal.querySelector('#confirm-assign-btn');
+        const select = modal.querySelector('#assign-user-select');
+        
+        confirmBtn.addEventListener('click', async () => {
+          const user = select.value.trim();
+          if (!user) {
+            toast({ title: 'No selection', message: 'Please select a pharmacist.', type: 'warning' });
+            return;
+          }
+          
+          modal.remove();
+          
+          try {
+            const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/assign`, {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user })
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              let detail = typeof err.detail === 'string' ? err.detail : 'Assign failed';
+              toast({ title: 'Assign failed', message: detail, type: 'error' });
+              return;
+            }
+            toast({ title: 'Assigned', message: `Now assigned to ${user}.`, type: 'success' });
+            await loadIntakes();
+            await loadStatistics();
+            refreshPatientSearchIfActive();
+          } catch (e) {
+            toast({ title: 'Network error', message: e.message || 'Assign failed', type: 'error' });
+          }
+        });
+      } else {
+        // Fallback to prompt if no users loaded
+        const user = (prompt('Assign to user (name or initials):') || '').trim();
+        if (!user) return;
+        try {
+          const res = await fetchWithTimeout(`${API_BASE}/intakes/${intakeId}/assign`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user })
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            let detail = typeof err.detail === 'string' ? err.detail : 'Assign failed';
+            toast({ title: 'Assign failed', message: detail, type: 'error' });
+            return;
+          }
+          toast({ title: 'Assigned', message: `Now assigned to ${user}.`, type: 'success' });
+          await loadIntakes();
+          await loadStatistics();
+          refreshPatientSearchIfActive();
+        } catch (e) {
+          toast({ title: 'Network error', message: e.message || 'Assign failed', type: 'error' });
+        }
       }
     }
     async function dispenseMedication(intakeId) {
@@ -2236,6 +2378,7 @@
         if (!res.ok) return;
         const data = await res.json();
         if (data.user && data.user.username) {
+          currentUsername = data.user.username;
           document.getElementById('user-name').textContent = data.user.username;
           document.getElementById('user-avatar').textContent = (data.user.username[0] || '?').toUpperCase();
         } else {

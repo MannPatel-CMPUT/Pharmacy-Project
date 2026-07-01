@@ -98,6 +98,11 @@ def find_user_by_email(email: str) -> Optional[dict[str, Any]]:
     return None
 
 
+def get_all_users() -> list[dict[str, Any]]:
+    """Return all users for pharmacist dropdown."""
+    return _load_users()["users"]
+
+
 def create_user(username: str, email: str, phone: str, password: str) -> dict[str, Any]:
     with _lock:
         data = _load_users()

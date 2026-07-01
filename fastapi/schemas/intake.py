@@ -45,6 +45,7 @@ class IntakeOut(BaseModel):
     pharmacist_notes: Optional[str] = None
     drug_interactions: Optional[str] = None
     status: str
+    created_by: Optional[str] = None
     assigned_to: Optional[str] = None
     dispensed: Optional[str] = None
     dispensed_at: Optional[datetime] = None

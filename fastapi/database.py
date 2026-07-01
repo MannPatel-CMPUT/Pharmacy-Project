@@ -54,6 +54,7 @@ class Intake(Base):
     pharmacist_notes = Column(Text, nullable=True)
     drug_interactions = Column(Text, nullable=True)
     status = Column(String, default="new")
+    created_by = Column(String, nullable=True)
     assigned_to = Column(String, nullable=True)
     dispensed = Column(String, nullable=True)
     dispensed_at = Column(DateTime, nullable=True)
@@ -387,6 +388,8 @@ def _run_lightweight_migrations() -> None:
                 conn.execute(text("ALTER TABLE intakes ADD COLUMN patient_gender TEXT"))
             if "patient_phone" not in intakes_cols:
                 conn.execute(text("ALTER TABLE intakes ADD COLUMN patient_phone TEXT"))
+            if "created_by" not in intakes_cols:
+                conn.execute(text("ALTER TABLE intakes ADD COLUMN created_by TEXT"))
 
             existing = {
                 row[1]
