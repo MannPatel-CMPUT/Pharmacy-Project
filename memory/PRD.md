@@ -71,6 +71,7 @@ Existing app: **Pharmacy Workflow Automation** — FastAPI + vanilla HTML dashbo
   - **Root cause**: `_load_ddii_csv_if_configured()` in `/app/fastapi/database.py` used a `db.get()` → `db.query(...).delete()` → `db.merge()` pattern. After delete, the previously-loaded `DdiCsvIngestManifest` row remained in the session identity map as `persistent`; `merge()` then emitted an UPDATE against a row that no longer existed → 0 rows affected → `StaleDataError` (Postgres surfaces this; SQLite silently accepted it).
   - **Fix**: Replaced delete-then-merge with an in-place update (or `db.add()` when the manifest row is absent). Same pattern applied to both the "start of ingest" (ingest_complete=0) and "end of ingest" (ingest_complete=1) writes.
   - **Verified locally**: All three code paths pass — fresh INSERT (191,135 pairs loaded), forced UPDATE-in-place (previously crashed), and no-op SKIP on unchanged CSV.
+- **New endpoint**: `GET /api/admin/ddi-stats` (cookie-authenticated) — returns `{drug_interactions_total, by_source, by_severity, csv_manifest}`. Verified end-to-end: 191,135 CSV + 4 seed_json rows, manifest `ingest_complete=true`. Unauthenticated → 401. Portal Node proxy updated in `/app/portal/server/index.mjs` to forward `/api/admin/*` to FastAPI.
 
 ## Prioritized backlog / Future
 - **P1**: Add `data-testid='audit-{id}'` was added in iteration 1 review; harden CSV ingest path for very large interaction datasets (current code already batches).

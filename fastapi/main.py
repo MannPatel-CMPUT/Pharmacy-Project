@@ -23,6 +23,7 @@ from routers.auth import router as auth_router
 from routers.config import router as config_router
 from routers.intakes import router as intakes_router
 from routers.google_auth import router as google_auth_router
+from routers.admin import router as admin_router
 from services import auth_service
 import os
 
@@ -136,6 +137,7 @@ app.include_router(auth_router)
 app.include_router(google_auth_router)
 app.include_router(intakes_router)
 app.include_router(config_router)
+app.include_router(admin_router)
 
 
 def _pharmacy_index() -> Path:
