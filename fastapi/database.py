@@ -261,21 +261,29 @@ def _load_ddii_csv_if_configured() -> None:
                 .filter(DrugInteraction.source == SOURCE_TAG)
                 .delete(synchronize_session=False)
             )
-            db.query(DdiCsvIngestManifest).filter(DdiCsvIngestManifest.id == 1).delete(
-                synchronize_session=False
-            )
             now = datetime.now(timezone.utc)
-            db.merge(
-                DdiCsvIngestManifest(
-                    id=1,
-                    csv_path=resolved,
-                    file_size=size,
-                    file_mtime=mtime,
-                    ingest_complete=0,
-                    last_ingest_stats=None,
-                    updated_at=now,
+            # Update the manifest in place (or insert if missing) — avoids the
+            # delete-then-merge pattern which triggers StaleDataError on Postgres
+            # because SQLAlchemy's identity map still tracks the deleted row.
+            if man is None:
+                db.add(
+                    DdiCsvIngestManifest(
+                        id=1,
+                        csv_path=resolved,
+                        file_size=size,
+                        file_mtime=mtime,
+                        ingest_complete=0,
+                        last_ingest_stats=None,
+                        updated_at=now,
+                    )
                 )
-            )
+            else:
+                man.csv_path = resolved
+                man.file_size = size
+                man.file_mtime = mtime
+                man.ingest_complete = 0
+                man.last_ingest_stats = None
+                man.updated_at = now
             db.commit()
             logger.info(
                 "Prepared DDII CSV ingest (removed %s old CSV-backed interaction rows)",
@@ -285,24 +293,34 @@ def _load_ddii_csv_if_configured() -> None:
         with SessionLocal() as db:
             stats = ingest_ddii_csv_file(db, path)
             now = datetime.now(timezone.utc)
-            db.merge(
-                DdiCsvIngestManifest(
-                    id=1,
-                    csv_path=resolved,
-                    file_size=size,
-                    file_mtime=mtime,
-                    ingest_complete=1,
-                    last_ingest_stats=json.dumps(
-                        {
-                            "inserted": stats.get("inserted"),
-                            "skipped": stats.get("skipped"),
-                            "total_rows": stats.get("total_rows"),
-                            "failed": stats.get("failed"),
-                        }
-                    ),
-                    updated_at=now,
-                )
+            stats_json = json.dumps(
+                {
+                    "inserted": stats.get("inserted"),
+                    "skipped": stats.get("skipped"),
+                    "total_rows": stats.get("total_rows"),
+                    "failed": stats.get("failed"),
+                }
             )
+            man2 = db.get(DdiCsvIngestManifest, 1)
+            if man2 is None:
+                db.add(
+                    DdiCsvIngestManifest(
+                        id=1,
+                        csv_path=resolved,
+                        file_size=size,
+                        file_mtime=mtime,
+                        ingest_complete=1,
+                        last_ingest_stats=stats_json,
+                        updated_at=now,
+                    )
+                )
+            else:
+                man2.csv_path = resolved
+                man2.file_size = size
+                man2.file_mtime = mtime
+                man2.ingest_complete = 1
+                man2.last_ingest_stats = stats_json
+                man2.updated_at = now
             db.commit()
         logger.info(
             "Loaded drug interactions CSV: inserted=%s skipped=%s rows=%s",

@@ -64,6 +64,14 @@ Existing app: **Pharmacy Workflow Automation** — FastAPI + vanilla HTML dashbo
 - Fix in `fastapi/services/ddi_severity_classifier.py`: keyword rules now recognise (a) high-risk activity increase → **major**, (b) "decrease the <toxic/sedative/CNS depressant/anticoagulant/serotonergic/…> activities" → **minor** (protective), (c) explicit "contraindicated / should not be used / must not" → **contraindicated**, (d) PK shifts (metabolism / serum concentration / efficacy) → **moderate**.
 - New distribution: `major 22,400 / moderate 167,302 / minor 1,839`. CSV regenerated with `scripts/add_ddii_risk_severity_column.py`; DB re-ingested at startup (manifest fingerprint changed).
 
+## Postgres migration + DDII CSV manifest fix (Feb 2026)
+- App migrated SQLite → PostgreSQL (Render). Added `psycopg2-binary`, `authlib`, `itsdangerous` to `requirements.txt`.
+- Custom Google OAuth added (`/app/fastapi/routers/google_auth.py` + `Login.tsx`).
+- **P0 bug fixed**: `sqlalchemy.orm.exc.StaleDataError` during `db_drug_interactions.csv` ingestion on Postgres deploy.
+  - **Root cause**: `_load_ddii_csv_if_configured()` in `/app/fastapi/database.py` used a `db.get()` → `db.query(...).delete()` → `db.merge()` pattern. After delete, the previously-loaded `DdiCsvIngestManifest` row remained in the session identity map as `persistent`; `merge()` then emitted an UPDATE against a row that no longer existed → 0 rows affected → `StaleDataError` (Postgres surfaces this; SQLite silently accepted it).
+  - **Fix**: Replaced delete-then-merge with an in-place update (or `db.add()` when the manifest row is absent). Same pattern applied to both the "start of ingest" (ingest_complete=0) and "end of ingest" (ingest_complete=1) writes.
+  - **Verified locally**: All three code paths pass — fresh INSERT (191,135 pairs loaded), forced UPDATE-in-place (previously crashed), and no-op SKIP on unchanged CSV.
+
 ## Prioritized backlog / Future
 - **P1**: Add `data-testid='audit-{id}'` was added in iteration 1 review; harden CSV ingest path for very large interaction datasets (current code already batches).
 - **P2**: Replace the inline emoji in counseling template output (backend `template_service`) with neutral text or icon tokens.
