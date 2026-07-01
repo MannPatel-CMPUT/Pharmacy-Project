@@ -16,11 +16,13 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 
 from database import init_db_interaction_sources, init_db_schema
 from routers.auth import router as auth_router
 from routers.config import router as config_router
 from routers.intakes import router as intakes_router
+from routers.google_auth import router as google_auth_router
 from services import auth_service
 import os
 
@@ -102,6 +104,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Add session middleware for OAuth (required by authlib)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("JWT_SECRET", "rxflow-dev-only-shared-secret"),
+    max_age=7 * 24 * 60 * 60,  # 7 days
+)
+
 _default_origins = "http://localhost:8000,http://localhost:8080"
 _origins = [o.strip() for o in os.getenv("FRONTEND_URL", _default_origins).split(",") if o.strip()]
 app.add_middleware(
@@ -124,6 +133,7 @@ def health_check():
 
 
 app.include_router(auth_router)
+app.include_router(google_auth_router)
 app.include_router(intakes_router)
 app.include_router(config_router)
 
