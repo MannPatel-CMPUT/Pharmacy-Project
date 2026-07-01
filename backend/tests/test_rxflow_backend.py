@@ -8,7 +8,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = "https://drug-compat-tool.preview.emergentagent.com"
+BASE_URL = "https://pharma-auth-hub-2.preview.emergentagent.com"
 
 
 # ---------- shared fixtures ----------
