@@ -103,21 +103,26 @@ def _copy_interactions_postgres(
     total_new = 0
     t_start = time.time()
 
-    def _flush(cur, rows: list[tuple]) -> None:
-        execute_values(
-            cur,
-            """
-            INSERT INTO drug_interactions
-              (drug_a_id, drug_b_id, severity, description, clinical_effect,
-               mechanism, monitoring, source)
-            VALUES %s
-            """,
-            rows,
-            template=None,
-            page_size=len(rows),
-        )
-
-    raw_conn = db.connection().connection  # SQLAlchemy → DBAPI connection
+    def _flush_and_commit(rows: list[tuple]) -> None:
+        """Get a fresh raw connection (SQLAlchemy may have released the previous one
+        back to the pool after the last ``db.commit()``), bulk-insert, commit."""
+        cur = db.connection().connection.cursor()
+        try:
+            execute_values(
+                cur,
+                """
+                INSERT INTO drug_interactions
+                  (drug_a_id, drug_b_id, severity, description, clinical_effect,
+                   mechanism, monitoring, source)
+                VALUES %s
+                """,
+                rows,
+                template=None,
+                page_size=len(rows),
+            )
+        finally:
+            cur.close()
+        db.commit()
 
     for d1, d2, desc, explicit in parsed_rows:
         stats["total_rows"] += 1
@@ -153,12 +158,7 @@ def _copy_interactions_postgres(
 
         if len(chunk) >= chunk_size:
             t0 = time.time()
-            cur = raw_conn.cursor()
-            try:
-                _flush(cur, chunk)
-            finally:
-                cur.close()
-            db.commit()
+            _flush_and_commit(chunk)
             dt = time.time() - t0
             total_new += len(chunk)
             stats["inserted"] += len(chunk)
@@ -171,12 +171,7 @@ def _copy_interactions_postgres(
 
     # Final partial chunk.
     if chunk:
-        cur = raw_conn.cursor()
-        try:
-            _flush(cur, chunk)
-        finally:
-            cur.close()
-        db.commit()
+        _flush_and_commit(chunk)
         total_new += len(chunk)
         stats["inserted"] += len(chunk)
 
