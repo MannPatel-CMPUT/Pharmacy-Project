@@ -93,6 +93,17 @@ Existing app: **Pharmacy Workflow Automation** — FastAPI + vanilla HTML dashbo
 - **Verified**: full 191,541-row CSV ingests in **24 s** on SQLite → 191,135 interactions + 1,701 drugs + 1,701 aliases.
 - **Regression tests** — `/app/tests/test_ddi_csv_ingest_two_pass.py` (4 tests): FK integrity across all interaction rows, reverse-pair dedup, reused existing drugs on second ingest, and **orphan-alias resilience** (a re-run after a previous partial ingest that left `DrugAlias` rows behind must dedup by global alias name, not `(drug_id, alias)`, or Postgres throws `UniqueViolation` on the `ix_drug_aliases_alias` index). Full suite: **65 passed**.
 
+## Portal users → Postgres (Feb 2026)
+- **Bug**: Google-signed-in users could not see username/password users in the pharmacist assignment dropdown. Users deposited between deploys were silently vanishing.
+- **Root cause**: `/app/fastapi/data/portal_users.json` was the sole user store. On Render, that file lives on ephemeral disk — every redeploy overwrote it with whatever was in git, wiping every account created since the last push.
+- **Fix**:
+  - Added `PortalUser` and `PortalPasswordReset` SQLAlchemy models in `/app/fastapi/database.py`.
+  - Rewrote `/app/fastapi/services/auth_service.py` to read/write from Postgres/SQLite (same function signatures kept, so no caller changes needed).
+  - Added `migrate_json_users_if_needed()` — one-shot startup migration that copies rows from any surviving legacy `portal_users.json` into the DB when the table is empty. Idempotent (no-op after first success).
+  - Wired into `/app/fastapi/main.py` lifespan.
+  - `/app/tests/conftest.py` calls `init_db_schema()` at collection time so legacy tests (which instantiate `TestClient(app)` outside a `with` block and never trigger lifespan) still see the new tables.
+- **Verified**: Full 65-pytest suite passes. Local migration test confirms all 24 legacy JSON users copy to DB, `find_user_by_username` works, second run is a no-op.
+
 ## Prioritized backlog / Future
 - **P1**: Add `data-testid='audit-{id}'` was added in iteration 1 review; harden CSV ingest path for very large interaction datasets (current code already batches).
 - **P2**: Replace the inline emoji in counseling template output (backend `template_service`) with neutral text or icon tokens.

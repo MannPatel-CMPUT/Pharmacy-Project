@@ -167,6 +167,35 @@ class DdiCsvIngestManifest(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class PortalUser(Base):
+    """Persistent user store for pharmacist accounts (both password + Google OAuth).
+
+    Migrated from ``fastapi/data/portal_users.json`` — the JSON file was on Render's
+    ephemeral disk and was wiped on every redeploy, causing all real accounts
+    created between deploys to disappear.
+    """
+
+    __tablename__ = "portal_users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, nullable=False, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    phone = Column(String, nullable=True, default="")
+    password_hash = Column(String, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class PortalPasswordReset(Base):
+    """Short-lived password-reset tokens (1 h). Persistent so a redeploy mid-reset works."""
+
+    __tablename__ = "portal_password_resets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, nullable=False, index=True)
+    token = Column(String, unique=True, nullable=False, index=True)
+    exp = Column(DateTime, nullable=False)
+
+
 def get_db():
     db = SessionLocal()
     try:

@@ -75,6 +75,15 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠ Database initialization warning: {e}")
 
+    # One-shot: migrate legacy portal_users.json rows into the portal_users
+    # table if the table is empty. Fixes the "logged in via Google → can't see
+    # username/password users" bug caused by ephemeral disk on Render.
+    try:
+        from services.auth_service import migrate_json_users_if_needed
+        migrate_json_users_if_needed()
+    except Exception as e:
+        print(f"⚠ Portal user migration warning: {e}")
+
     async def _load_interactions_bg() -> None:
         try:
             await asyncio.to_thread(init_db_interaction_sources)
