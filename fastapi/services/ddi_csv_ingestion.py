@@ -86,15 +86,39 @@ def _copy_interactions_postgres(
     stats: dict[str, Any],
 ) -> dict[str, Any]:
     """
-    Bulk-load new drug_interactions rows into Postgres using ``COPY … FROM STDIN``.
-    Single streaming operation → ~10-100× faster than row-by-row INSERT batches
-    and side-steps the "hundreds of small commits stall on hosted Postgres"
-    failure mode. Returns updated ``stats`` in-place.
+    Bulk-load new drug_interactions rows into Postgres using
+    ``psycopg2.extras.execute_values`` in chunks. This is a proven pattern for
+    hosted Postgres:
+
+    * Chunked → memory bounded (~5-10 MB per chunk vs. 100 MB single COPY buffer
+      that OOM'd the Render 512 MB free-tier worker).
+    * Multi-row INSERT per chunk → ~10× faster than one INSERT per row and far
+      more forgiving of transient network hiccups than one giant COPY.
+    * Progress line + timing after each chunk so a slow tier is visible.
     """
-    # Build the COPY payload in memory, skipping rows whose pair already exists
-    # or whose drugs weren't resolved.
-    buf = io.StringIO()
-    row_count = 0
+    from psycopg2.extras import execute_values
+
+    chunk_size = int(os.getenv("DDI_CSV_PG_CHUNK", "2000"))
+    chunk: list[tuple] = []
+    total_new = 0
+    t_start = time.time()
+
+    def _flush(cur, rows: list[tuple]) -> None:
+        execute_values(
+            cur,
+            """
+            INSERT INTO drug_interactions
+              (drug_a_id, drug_b_id, severity, description, clinical_effect,
+               mechanism, monitoring, source)
+            VALUES %s
+            """,
+            rows,
+            template=None,
+            page_size=len(rows),
+        )
+
+    raw_conn = db.connection().connection  # SQLAlchemy → DBAPI connection
+
     for d1, d2, desc, explicit in parsed_rows:
         stats["total_rows"] += 1
         if explicit in ALLOWED_SEVERITIES:
@@ -116,57 +140,51 @@ def _copy_interactions_postgres(
             continue
         known_pairs.add(pair)
 
-        # Postgres COPY tab-delimited format. Escape tabs, newlines, and
-        # backslashes in the description so they don't break the column layout.
-        def _copy_escape(s: str) -> str:
-            return (
-                s.replace("\\", "\\\\")
-                 .replace("\t", "\\t")
-                 .replace("\n", "\\n")
-                 .replace("\r", "\\r")
+        chunk.append((
+            pair[0],
+            pair[1],
+            severity,
+            desc,
+            desc[:2000],
+            None,
+            None,
+            SOURCE_TAG,
+        ))
+
+        if len(chunk) >= chunk_size:
+            t0 = time.time()
+            cur = raw_conn.cursor()
+            try:
+                _flush(cur, chunk)
+            finally:
+                cur.close()
+            db.commit()
+            dt = time.time() - t0
+            total_new += len(chunk)
+            stats["inserted"] += len(chunk)
+            print(
+                f"[ddi_csv] pass 2/2: bulk-inserted {total_new}/{len(parsed_rows)} "
+                f"({dt:.2f}s / chunk of {len(chunk)})",
+                flush=True,
             )
+            chunk = []
 
-        desc_esc = _copy_escape(desc)
-        eff_esc = _copy_escape(desc[:2000])
-        # Columns: drug_a_id, drug_b_id, severity, description, clinical_effect,
-        #          mechanism, monitoring, source
-        buf.write(
-            f"{pair[0]}\t{pair[1]}\t{severity}\t{desc_esc}\t{eff_esc}\t\\N\t\\N\t{SOURCE_TAG}\n"
-        )
-        row_count += 1
+    # Final partial chunk.
+    if chunk:
+        cur = raw_conn.cursor()
+        try:
+            _flush(cur, chunk)
+        finally:
+            cur.close()
+        db.commit()
+        total_new += len(chunk)
+        stats["inserted"] += len(chunk)
 
-    if row_count == 0:
-        print("[ddi_csv] pass 2/2: nothing new to insert (all pairs already present)", flush=True)
-        return stats
-
-    buf.seek(0)
+    total_dt = time.time() - t_start
+    rate = int(total_new / max(total_dt, 0.001))
     print(
-        f"[ddi_csv] pass 2/2: streaming {row_count} new interaction rows via COPY…",
-        flush=True,
-    )
-    t0 = time.time()
-
-    # Get the raw psycopg2 connection to use copy_expert.
-    raw_conn = db.connection().connection  # SQLAlchemy → DBAPI connection
-    cursor = raw_conn.cursor()
-    try:
-        cursor.copy_expert(
-            """
-            COPY drug_interactions
-              (drug_a_id, drug_b_id, severity, description, clinical_effect,
-               mechanism, monitoring, source)
-            FROM STDIN WITH (FORMAT text, DELIMITER E'\t', NULL '\\N')
-            """,
-            buf,
-        )
-    finally:
-        cursor.close()
-
-    dt = time.time() - t0
-    stats["inserted"] += row_count
-    print(
-        f"[ddi_csv] pass 2/2: COPY complete — {row_count} rows in {dt:.2f}s "
-        f"({int(row_count / max(dt, 0.001))} rows/s)",
+        f"[ddi_csv] pass 2/2: bulk insert complete — {total_new} rows in "
+        f"{total_dt:.2f}s ({rate} rows/s)",
         flush=True,
     )
     return stats
@@ -311,20 +329,17 @@ def ingest_ddii_csv_stream(
 
     is_postgres = "postgres" in str(db.get_bind().url).lower()
     if is_postgres:
-        stats.update(
-            _copy_interactions_postgres(
-                db=db,
-                parsed_rows=parsed_rows,
-                drug_id_by_name=drug_id_by_name,
-                known_pairs=known_pairs,
-                stats=stats,
-            )
+        _copy_interactions_postgres(
+            db=db,
+            parsed_rows=parsed_rows,
+            drug_id_by_name=drug_id_by_name,
+            known_pairs=known_pairs,
+            stats=stats,
         )
-        db.commit()
         print(
             f"[ddi_csv] done total_rows={stats['total_rows']} "
             f"inserted={stats['inserted']} skipped={stats['skipped']} "
-            f"failed={stats['failed']} (via COPY)",
+            f"failed={stats['failed']} (via bulk INSERT)",
             flush=True,
         )
         logger.info(
