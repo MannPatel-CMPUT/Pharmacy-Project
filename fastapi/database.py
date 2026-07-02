@@ -242,13 +242,34 @@ def _load_ddii_csv_if_configured() -> None:
                 )
                 return
 
+            # RESUME logic: If the CSV file is identical to what's tracked in
+            # the manifest AND we're not forcing a fresh reload, keep the rows
+            # already inserted from the previous (possibly interrupted) run.
+            # The ingest itself preloads `known_pairs` and dedups, so re-running
+            # only inserts the pairs still missing. This is critical on free-tier
+            # hosted Postgres where the worker may be killed mid-run — each
+            # restart makes forward progress instead of restarting from 0.
+            file_unchanged = (
+                man is not None
+                and man.csv_path == resolved
+                and man.file_size == size
+                and man.file_mtime == mtime
+            )
+            can_resume = (not force) and file_unchanged and n > 0
+
             if force:
                 print("[ddi_csv] DDI_CSV_FORCE_RELOAD: clearing manifest and CSV-backed rows", flush=True)
+            elif can_resume:
+                print(
+                    f"[ddi_csv] RESUMING previous run: keeping {n} already-inserted "
+                    f"CSV-backed rows; will only insert missing pairs",
+                    flush=True,
+                )
             elif man is None:
                 print("[ddi_csv] manifest missing; clearing any partial CSV-backed rows", flush=True)
             elif man.ingest_complete != 1:
-                print("[ddi_csv] previous ingest incomplete; clearing CSV-backed rows", flush=True)
-            elif man.csv_path != resolved or man.file_size != size or man.file_mtime != mtime:
+                print("[ddi_csv] previous ingest incomplete + file changed; clearing CSV-backed rows", flush=True)
+            elif not file_unchanged:
                 print(
                     f"[ddi_csv] CSV file changed (was {man.file_size} bytes mtime {man.file_mtime}; "
                     f"now {size} bytes mtime {mtime}); reloading",
@@ -257,11 +278,14 @@ def _load_ddii_csv_if_configured() -> None:
             elif n == 0:
                 print("[ddi_csv] manifest reports success but 0 rows in DB; re-importing", flush=True)
 
-            deleted = (
-                db.query(DrugInteraction)
-                .filter(DrugInteraction.source == SOURCE_TAG)
-                .delete(synchronize_session=False)
-            )
+            if can_resume:
+                deleted = 0  # keep existing rows
+            else:
+                deleted = (
+                    db.query(DrugInteraction)
+                    .filter(DrugInteraction.source == SOURCE_TAG)
+                    .delete(synchronize_session=False)
+                )
             now = datetime.now(timezone.utc)
             # Update the manifest in place (or insert if missing) — avoids the
             # delete-then-merge pattern which triggers StaleDataError on Postgres
@@ -286,10 +310,16 @@ def _load_ddii_csv_if_configured() -> None:
                 man.last_ingest_stats = None
                 man.updated_at = now
             db.commit()
-            print(
-                f"[ddi_csv] prepared ingest (removed {deleted} old CSV-backed interaction rows)",
-                flush=True,
-            )
+            if can_resume:
+                print(
+                    f"[ddi_csv] prepared ingest (resuming; {n} rows already present)",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"[ddi_csv] prepared ingest (removed {deleted} old CSV-backed interaction rows)",
+                    flush=True,
+                )
 
         with SessionLocal() as db:
             print(f"[ddi_csv] beginning CSV ingest from {resolved}", flush=True)
